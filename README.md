@@ -25,7 +25,16 @@ vflow update D:\path\to\project --spec   # 连规范库一起覆盖（慎用）
 vflow status D:\path\to\project    # 查看状态
 ```
 
-装好后打开 Claude Code：直接说需求（自动判级）或 `/task` `/quick` 强制分级。
+装好后打开 Claude Code：
+
+| 入口 | 用法 |
+| :--- | :--- |
+| 直接对话 | 说需求即可，hook 自动判级分流 |
+| `/vflow:go <需求>` | 显式智能入口（不知道用什么时就用它） |
+| `/vflow:task` `/vflow:quick` | 强制标准流程 / 快速通道 |
+| `/vflow:init` | AI 扫描项目自动探测配置（构建系统/core_paths/特性） |
+| `/vflow:commit` | 智能提交：分类改动→中文提交信息→一次确认 |
+| `/vflow:context` | 状态总览：当前任务/档案/历史/日志 |
 
 ## 内容
 

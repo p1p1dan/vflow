@@ -27,7 +27,7 @@
 4. T2 标准 → 输出判级句式 → 运行 `python .vflow/scripts/task.py create <slug> --title "<标题>"` → 按 .claude/skills/vflow-task/SKILL.md 执行
 
 覆盖与纠正：
-- 用户用 /task /quick 指定级别时服从指令，不再自行判级
+- 用户用 /vflow:task /vflow:quick 等命令指定级别时服从指令，不再自行判级
 - 用户说「直接改」「skip」「跳过流程」→ 跳过一切流程内联处理，但仍遵守 spec/ 规范和测试硬规则
 - 用户一句话即可改级（如"这个按快速处理"），立即切换不争辩
 

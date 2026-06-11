@@ -42,6 +42,15 @@ MANAGED_CLAUDE = [
     "skills/vflow-review/SKILL.md",
     "skills/vflow-test/SKILL.md",
     "skills/vflow-spec/SKILL.md",
+    "commands/vflow/go.md",
+    "commands/vflow/task.md",
+    "commands/vflow/quick.md",
+    "commands/vflow/commit.md",
+    "commands/vflow/init.md",
+    "commands/vflow/context.md",
+]
+# v0.1 旧路径命令，更新时清理
+LEGACY_CLAUDE = [
     "commands/task.md",
     "commands/quick.md",
 ]
@@ -66,7 +75,7 @@ def copy_one(src_root, rel, dst_dir, overwrite):
         return
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     shutil.copy2(src, dst)
-    print("  [写入] %s" % os.path.relpath(dst))
+    print("  [写入] %s/%s" % (os.path.basename(dst_dir.rstrip("/\\")), rel))
 
 
 def install_spec(dst_root, force):
@@ -175,6 +184,11 @@ def do_install(dst, update=False, spec=False, reconfigure=False):
         copy_one(SRC_VFLOW, rel, os.path.join(dst, ".vflow"), overwrite=True)
     for rel in MANAGED_CLAUDE:
         copy_one(SRC_CLAUDE, rel, os.path.join(dst, ".claude"), overwrite=True)
+    for rel in LEGACY_CLAUDE:
+        legacy = os.path.join(dst, ".claude", rel)
+        if os.path.exists(legacy):
+            os.remove(legacy)
+            print("  [清理] .claude/%s（已迁移至 commands/vflow/）" % rel)
     print("-- 用户数据 --")
     for rel in COPY_IF_ABSENT_VFLOW:
         copy_one(SRC_VFLOW, rel, os.path.join(dst, ".vflow"), overwrite=False)
