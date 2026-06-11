@@ -58,16 +58,19 @@
 
 必须：
 1. 写码前按任务涉及主题读取 .vflow/spec/ 对应规范正文（按 config.json features 过滤模块）
-2. 实现过程持续更新任务目录 worklog.md：改了哪些文件、为什么
+2. 按 plan.md 的「任务清单」逐项实现：完成一项立即勾选 `[x]` 并向 worklog.md 追加一行（改了哪些文件、为什么）；跨会话续做时从第一个未勾选项继续
 3. 测试硬规则（领导要求，不可跳过）：
    - 项目无测试目录 → 先按 .claude/skills/vflow-test/SKILL.md 创建测试骨架
    - 新增类/公共接口 → 必须同步编写测试用例（正常路径+边界）
 4. 质量自检：实现完成后按 .claude/skills/vflow-review/SKILL.md 自检，结果写入 verify.md（按模板）；verify.md 必须粘贴构建/测试的真实命令输出，禁止口头宣布通过
+   - **高风险任务必须用独立评审模式**（派发全新上下文子代理评审，见 vflow-review 第 6 步）
 5. 审批门 2（仅高风险）：🛑 自检报告展示后等用户确认才能归档
-6. 归档：`python .vflow/scripts/task.py done --summary "<一句话产出>"`
+6. 归档前检查：任务清单仍有未勾选项 → 不得归档，先完成或与用户确认裁剪
+7. 归档：`python .vflow/scripts/task.py done --summary "<一句话产出>"`
 
 禁止：
 - 跳过测试硬规则（仅纯注释/文档改动豁免）
 - verify.md 无真实命令输出就宣布完成
+- 任务清单有未勾选项时归档（除非用户确认裁剪并在 plan.md 注明）
 - 实现偏离已确认方案却不告知用户
 [/workflow-state:in_progress]
