@@ -4,45 +4,62 @@
 
 > 本仓库只包含通用工作流框架与基础规范模板。项目个性化的规范回写、任务档案随各项目自己的 git 管理，不回流本仓库。
 
-## 安装（新设备一条命令）
+## 两种上车方式
+
+**方式一：装 vflow（推荐发起人/新项目）——每台设备一次**
 
 ```bash
-pip install git+https://<你的git地址>/vflow.git
+pip install git+https://github.com/p1p1dan/vflow.git && vflow setup
 ```
 
-或本地开发安装：
+> pypi 访问受限时先配镜像：`pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/`
+> 集成式安装（自有 client）等价调用：`python -m pip install <包>` + `python -m vflow.cli setup`
 
-```bash
-git clone <仓库地址> && cd vflow && pip install -e .
-```
+之后在任意项目打开 Claude Code：
+- 项目未启用 → AI 自动询问一次是否启用（同意即自动配置；拒绝则记录、不再询问）
+- 拒绝过又想用 → 对 AI 说"启用 vflow"或运行 `/vflow:init`
 
-## 使用
+**方式二：什么都不装（同事/换设备）**
 
-```bash
-vflow init D:\path\to\project      # 装入项目（交互式配置）
-vflow update D:\path\to\project    # 升级框架（保留任务档案/配置/规范回写）
-vflow update D:\path\to\project --spec   # 连规范库一起覆盖（慎用）
-vflow status D:\path\to\project    # 查看状态
-```
+项目启用 vflow 后，全部资产（`.vflow/` + `.claude/`）随项目 git 提交。同事 clone 仓库、打开 Claude Code **直接可用**——只需要电脑上有 Python。
 
-装好后打开 Claude Code：
+## 对话内使用
 
 | 入口 | 用法 |
 | :--- | :--- |
-| 直接对话 | 说需求即可，hook 自动判级分流 |
+| 直接对话 | 说需求即可，自动判级分流（T0 问答 / T1 快速 / T2 标准） |
 | `/vflow:go <需求>` | 显式智能入口（不知道用什么时就用它） |
 | `/vflow:task` `/vflow:quick` | 强制标准流程 / 快速通道 |
-| `/vflow:init` | AI 扫描项目自动探测配置（构建系统/core_paths/特性） |
+| `/vflow:init` | 启用项目 + AI 探测配置（构建系统/core_paths/特性） |
 | `/vflow:commit` | 智能提交：分类改动→中文提交信息→一次确认 |
 | `/vflow:context` | 状态总览：当前任务/档案/历史/日志 |
 
-## 内容
+## 架构（混合式：项目为主，全局为辅）
 
-- `src/vflow/cli.py` — 安装器（受管文件覆盖 / 用户数据保留 / settings.json 智能合并）
-- `src/vflow/template_vflow/` — `.vflow/` 载荷：workflow.md、规范库、脚本、产物模板
-- `src/vflow/template_claude/` — `.claude/` 载荷：5 个 Skill + 2 个命令 + hooks
-- `INSTALL.md` — 手工安装说明（无 pip 环境的备用方案）
+```
+<项目>/（项目资产 = 主体，随 git，clone 即得）
+├── .vflow/                  # workflow.md 状态机 + config + spec 规范库 + tasks 档案 + scripts
+└── .claude/                 # 6 个 /vflow:* 命令 + 5 个技能 + 项目 hooks（相对路径，零环境依赖）
 
-## 发布新版本
+~/.claude/（全局资产 = 发现与启用层，仅装了 vflow 的人有）
+├── vflow/detect.py          # 会话检测：未启用项目→询问一次 / 已拒绝→静默 / 已启用→让位项目 hooks（防双注入）
+├── commands/vflow/init.md   # 全局 /vflow:init 启用入口
+└── settings.json            # 全局 hooks（智能合并，保留原有配置）
+```
 
-改模板 → 提交推送 → 各设备 `pip install --upgrade git+<地址>` → 各项目 `vflow update <路径>`。
+## CLI 命令（一般用不到，对话内都能完成）
+
+```bash
+vflow setup                  # 安装/刷新全局资产（CLI 每次运行自动校验版本）
+vflow init <路径> [--yes]    # 项目启用（--yes 静默默认配置）
+vflow update <路径> [--spec] # 升级项目受管文件（保留档案/配置/规范回写）
+vflow decline <路径>         # 标记不启用，不再询问
+vflow status [路径]          # 查看任务状态
+```
+
+## 升级
+
+```bash
+pip install --upgrade git+https://github.com/p1p1dan/vflow.git
+# 全局资产自动刷新（下次运行任意 vflow 命令时）；各项目执行 vflow update <路径>
+```
