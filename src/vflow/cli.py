@@ -49,6 +49,11 @@ MANAGED_VFLOW = [
     "templates/plan.md",
     "templates/verify.md",
     "templates/quick-entry.md",
+    "skills/vflow-task/SKILL.md",
+    "skills/vflow-quick/SKILL.md",
+    "skills/vflow-review/SKILL.md",
+    "skills/vflow-test/SKILL.md",
+    "skills/vflow-spec/SKILL.md",
 ]
 COPY_IF_ABSENT_VFLOW = [
     "config.json",
@@ -186,12 +191,7 @@ def install_project_claude(dst_root):
     for f in PROJECT_COMMANDS:
         shutil.copy2(os.path.join(SRC_CLAUDE, "commands", "vflow", f),
                      os.path.join(cmd_dst, f))
-    for s in PROJECT_SKILLS:
-        d = os.path.join(cl, "skills", s)
-        os.makedirs(d, exist_ok=True)
-        shutil.copy2(os.path.join(SRC_CLAUDE, "skills", s, "SKILL.md"),
-                     os.path.join(d, "SKILL.md"))
-    print("  [写入] .claude/（%d 命令 + %d 技能）" % (len(PROJECT_COMMANDS), len(PROJECT_SKILLS)))
+    print("  [写入] .claude/（%d 命令）" % len(PROJECT_COMMANDS))
     # 合并项目 settings.json hooks（相对路径，跨设备无依赖）
     sp = os.path.join(cl, "settings.json")
     settings = read_json(sp, None)
@@ -224,6 +224,12 @@ def install_project_claude(dst_root):
             if f.startswith("vflow-") and f.endswith(".md"):
                 os.remove(os.path.join(cmd_parent, f))
                 print("  [cleanup] .claude/commands/%s (old dash-format)" % f)
+    # v0.3.0: skills moved from .claude/skills/ to .vflow/skills/ — clean up old location
+    for s in PROJECT_SKILLS:
+        old_skill = os.path.join(cl, "skills", s)
+        if os.path.isdir(old_skill):
+            shutil.rmtree(old_skill)
+            print("  [cleanup] .claude/skills/%s (moved to .vflow/skills/)" % s)
 
 
 def append_gitignore(dst_root):

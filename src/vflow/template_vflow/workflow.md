@@ -43,8 +43,8 @@ No active task. After receiving a user message, classify first, then act.
 1. Classify and state explicitly using this fixed phrase:
    "📋 Tier: T{0|1|2} {Q&A|Quick|Standard} (reason: ...). {next action}"
 2. T0 Q&A → answer directly, no archive, no tier output (pure Q&A, don't interrupt)
-3. T1 Quick → output tier statement → execute per .claude/skills/vflow-quick/SKILL.md
-4. T2 Standard → output tier statement → run `python .vflow/scripts/task.py create <slug> --title "<title>"` → execute per .claude/skills/vflow-task/SKILL.md
+3. T1 Quick → output tier statement → execute per .vflow/skills/vflow-quick/SKILL.md
+4. T2 Standard → output tier statement → run `python .vflow/scripts/task.py create <slug> --title "<title>"` → execute per .vflow/skills/vflow-task/SKILL.md
 
 ### Override and Correction
 - When the user specifies a tier via /vflow:task or /vflow:quick, obey — do not re-classify
@@ -100,12 +100,12 @@ If the user changes scope or adds/removes requirements during implementation:
 
 ### Test Hard Rule [required·continuous]
 (Default: enabled. Exempt when config.json test_required=false — in that case, only suggest tests verbally)
-3. No test directory in project → create test scaffold first per .claude/skills/vflow-test/SKILL.md
+3. No test directory in project → create test scaffold first per .vflow/skills/vflow-test/SKILL.md
 4. New class / public interface → must write test cases (happy path + edge cases)
 5. User says "disable test requirement" → set config.json test_required to false, confirm, then stop enforcing
 
 ### Quality Check [required·once]
-6. After implementation, run quality check per .claude/skills/vflow-review/SKILL.md, write results to verify.md (per template)
+6. After implementation, run quality check per .vflow/skills/vflow-review/SKILL.md, write results to verify.md (per template)
 7. verify.md MUST contain real build/test command output — no verbal-only pass claims
 8. **High-risk tasks must use independent review mode** (dispatch a fresh-context sub-agent for review; see vflow-review step 6)
 
