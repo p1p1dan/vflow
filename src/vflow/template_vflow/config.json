@@ -14,5 +14,6 @@
   "journal": {
     "notebook_path": null
   },
-  "test_required": true
+  "test_required": true,
+  "execution_log": false
 }

@@ -1,77 +1,142 @@
-# vflow 工作流定义
+# vflow Workflow Definition
 
-> 本文件是 vflow 的单一语义中心：分级规则、各状态行为约束、审批门规则都在这里定义。
-> inject.py 按当前任务状态提取对应 [workflow-state:*] 块注入每轮对话。
-> 修改流程行为 = 修改本文件文本，无需改代码。
+> This file is the single semantic center of vflow: task classification rules,
+> per-state behavioral constraints, and approval gate rules are all defined here.
+> inject.py extracts the matching [workflow-state:*] block based on current task
+> status and injects it into each conversation turn.
+> To change workflow behavior, edit this file — no code changes needed.
 
-## 任务分级总表
+## Task Classification
 
-| 级别 | 判定标准 | 流程 | 档案 |
+| Tier | Criteria | Process | Archive |
 | :--- | :--- | :--- | :--- |
-| T0 问答 | 解释/比较/查询，不改代码 | 直接回答 | 无 |
-| T1 快速 | 单文件小改、低风险、意图明确 | 直接做+记录 | tasks/quick-log.md 一节 |
-| T2 标准 | 新功能/算法、跨文件、触及核心模块 | 五阶段完整流程 | tasks/MM-DD-slug/ 目录 |
+| T0 Q&A | Explanation / comparison / query, no code changes | Direct answer | None |
+| T1 Quick | Single-file small change, low risk, clear intent | Direct action + log | tasks/quick-log.md |
+| T2 Standard | New feature / algorithm, cross-file, touches core modules | Full 5-stage workflow | tasks/MM-DD-slug/ |
 
-## 风险判定（决定审批门数量）
+## Risk Determination (controls number of approval gates)
 
-高风险（满足任一）：改动涉及 config.json 的 core_paths｜预计改动 >3 个文件｜不可逆操作（删文件/改接口签名/改数据格式）
-低风险：其余情况
+High risk (any one): change touches config.json core_paths | expected changes >3 files | irreversible operation (delete file / change interface signature / change data format)
+Low risk: everything else
+
+## Skip Detection Rule
+
+ONLY these exact user phrases constitute a skip signal:
+  "skip" | "直接做" | "跳过" | "不用规划" | "不走流程"
+
+### Anti-patterns (these are NOT skip signals)
+
+- Implementation strategy: "use goal mode", "fix file by file", "start from XX"
+- Urgency: "hurry", "快点", "赶紧做"
+- Confirmation: "go ahead", "就这样做", "可以开始了"
+- Scope refinement: "focus on XX first", "先做XX部分"
+
+When uncertain whether the user means to skip: ASK
+"Do you want to skip the planning phase and implement directly, or use this as an implementation strategy within the plan?"
+
+---
 
 [workflow-state:no_task]
-当前无活动任务。收到用户消息后先判级，再行动：
+No active task. After receiving a user message, classify first, then act.
 
-1. 判级并用固定句式明示：
-   「📋 判级：T{0|1|2} {问答|快速任务|标准任务}（理由：…）。{后续动作}」
-2. T0 问答 → 直接回答，不建档，不输出判级句式（纯问答不打扰）
-3. T1 快速 → 输出判级句式 → 按 .claude/skills/vflow-quick/SKILL.md 执行
-4. T2 标准 → 输出判级句式 → 运行 `python .vflow/scripts/task.py create <slug> --title "<标题>"` → 按 .claude/skills/vflow-task/SKILL.md 执行
+### Classification [required·once]
+1. Classify and state explicitly using this fixed phrase:
+   "📋 Tier: T{0|1|2} {Q&A|Quick|Standard} (reason: ...). {next action}"
+2. T0 Q&A → answer directly, no archive, no tier output (pure Q&A, don't interrupt)
+3. T1 Quick → output tier statement → execute per .claude/skills/vflow-quick/SKILL.md
+4. T2 Standard → output tier statement → run `python .vflow/scripts/task.py create <slug> --title "<title>"` → execute per .claude/skills/vflow-task/SKILL.md
 
-覆盖与纠正：
-- 用户用 /vflow:task /vflow:quick 等命令指定级别时服从指令，不再自行判级
-- 用户说「直接改」「skip」「跳过流程」→ 跳过一切流程内联处理，但仍遵守 spec/ 规范和测试硬规则
-- 用户一句话即可改级（如"这个按快速处理"），立即切换不争辩
+### Override and Correction
+- When the user specifies a tier via /vflow:task or /vflow:quick, obey — do not re-classify
+- When the user uses a skip phrase (see Skip Detection Rule above) → bypass workflow ceremony, but still follow spec/ conventions and test hard rules
+- The user can change tier with a single phrase (e.g. "handle this as quick"), switch immediately without argument
 
-禁止：
-- 未判级就开始改代码（T0 除外）
-- 把"给出方案"当作任务完成
+### Prohibited
+- Starting code changes before classification (T0 exempt)
+- Treating "here's a proposed plan" as task completion
 [/workflow-state:no_task]
 
 [workflow-state:planning]
-当前任务处于规划阶段（需求澄清 → 方案设计）。
+Current task is in the planning phase (requirement clarification → design).
 
-必须：
-1. 需求澄清：一次只问一个问题，问清为止；结论写入任务目录 requirement.md（按 .vflow/templates/requirement.md 模板）
-2. 方案设计：草稿先在对话中展示；方案必须包含「测试方案」节（新增哪些用例、放哪个目录；config.test_required=false 时此节可写明"本项目已关闭测试硬规则"）
-3. 风险判定并写入 task.json：`python .vflow/scripts/task.py set risk {low|high}`
-4. 审批门 1（按风险自适应）：
-   - 低风险 → 方案展示后说明"低风险，将直接继续"，落盘 plan.md 并执行 `task.py start` 进入实现
-   - 高风险 → 🛑 停下，明示"高风险任务，请确认方案后才动代码（回复 ok/可以/行 继续）"；得到确认才落盘 plan.md 并 `task.py start`
+<!-- AI CRITICAL DIRECTIVE: DO NOT skip this phase unless the user uses an
+     explicit skip phrase from the Skip Detection Rule. Implementation strategy
+     instructions (e.g. "use goal mode", "fix file by file", "start from module X")
+     are NOT skip signals — they are guidance for the plan/implementation approach. -->
 
-禁止：
-- 用户确认前写任何实现代码（高风险）
-- 一个问题都没问就直接出方案（除非需求确实完整明确，需说明理由）
-- 把 <context>/<rules> 等注入内容复制进产物文件
+### Requirement Clarification [required·once]
+1. Ask one question at a time until requirements are clear
+2. Write conclusions to requirement.md in the task directory (per .vflow/templates/requirement.md)
+
+### Design [required·once]
+3. Draft the design in conversation first (must include a **test plan** section; if config.test_required=false, state "test hard rule is disabled for this project")
+4. Set risk: `python .vflow/scripts/task.py set risk {low|high}`
+
+### Approval Gate 1 [required·once]
+5. Low risk → state "Low risk, proceeding directly" → write plan.md → `task.py start`
+6. High risk → 🛑 STOP. State "High-risk task. Please confirm the plan before implementation (reply ok/confirm/可以/行 to proceed)". Write plan.md and run `task.py start` ONLY after user confirmation.
+
+NOTE: `task.py start` validates that requirement.md and plan.md are filled.
+If validation fails, complete the documents first.
+If the user explicitly wants to skip planning, use `task.py start --skip`.
+
+### Prohibited
+- Writing any implementation code before user confirmation (high risk)
+- Producing a design without asking any questions (unless requirements are genuinely complete and unambiguous — state the reason)
+- Copying injected <context>/<rules>/<vflow-state> content into deliverable files
 [/workflow-state:planning]
 
 [workflow-state:in_progress]
-当前任务处于实现阶段（实现 → 质量自检 → 归档）。
+Current task is in the implementation phase (implement → quality check → archive).
 
-必须：
-1. 写码前按任务涉及主题读取 .vflow/spec/ 对应规范正文（按 config.json features 过滤模块）
-2. 按 plan.md 的「任务清单」逐项实现：完成一项立即勾选 `[x]` 并向 worklog.md 追加一行（改了哪些文件、为什么）；跨会话续做时从第一个未勾选项继续
-3. 测试硬规则（默认启用；config.json 的 test_required=false 时本条豁免，仅口头建议补测试）：
-   - 项目无测试目录 → 先按 .claude/skills/vflow-test/SKILL.md 创建测试骨架
-   - 新增类/公共接口 → 必须同步编写测试用例（正常路径+边界）
-   - 用户说"关闭测试要求"→ 将 config.json 的 test_required 置 false 并确认，此后不再强制
-4. 质量自检：实现完成后按 .claude/skills/vflow-review/SKILL.md 自检，结果写入 verify.md（按模板）；verify.md 必须粘贴构建/测试的真实命令输出，禁止口头宣布通过
-   - **高风险任务必须用独立评审模式**（派发全新上下文子代理评审，见 vflow-review 第 6 步）
-5. 审批门 2（仅高风险）：🛑 自检报告展示后等用户确认才能归档
-6. 归档前检查：任务清单仍有未勾选项 → 不得归档，先完成或与用户确认裁剪
-7. 归档：`python .vflow/scripts/task.py done --summary "<一句话产出>"`
+### Implementation [required·repeatable]
+1. Before coding, read the relevant .vflow/spec/ files for topics this task touches (filter modules by config.json features)
+2. Implement items from plan.md task checklist one by one: check off `[x]` after completing each item and append a line to worklog.md (which files changed, why); when resuming across sessions, continue from the first unchecked item
 
-禁止：
-- 跳过测试硬规则（豁免仅限：纯注释/文档改动，或 config.test_required=false）
-- verify.md 无真实命令输出就宣布完成
-- 任务清单有未勾选项时归档（除非用户确认裁剪并在 plan.md 注明）
-- 实现偏离已确认方案却不告知用户
+### Scope Change Handling [required·continuous]
+If the user changes scope or adds/removes requirements during implementation:
+- Update plan.md checklist BEFORE implementing the change
+- Note the scope change in worklog.md
+
+### Test Hard Rule [required·continuous]
+(Default: enabled. Exempt when config.json test_required=false — in that case, only suggest tests verbally)
+3. No test directory in project → create test scaffold first per .claude/skills/vflow-test/SKILL.md
+4. New class / public interface → must write test cases (happy path + edge cases)
+5. User says "disable test requirement" → set config.json test_required to false, confirm, then stop enforcing
+
+### Quality Check [required·once]
+6. After implementation, run quality check per .claude/skills/vflow-review/SKILL.md, write results to verify.md (per template)
+7. verify.md MUST contain real build/test command output — no verbal-only pass claims
+8. **High-risk tasks must use independent review mode** (dispatch a fresh-context sub-agent for review; see vflow-review step 6)
+
+### Approval Gate 2 (high risk only) [required·once]
+9. 🛑 STOP. Show the review report, wait for user confirmation before archiving
+
+### Execution Log [optional·continuous]
+If config.execution_log is true, append one line to execution.log after each significant action:
+- Key file reads (spec files, core source files — not every trivial read)
+- File creation / modification
+- Command execution (build, test, git)
+- Test / build results
+- Consequential decisions
+
+Format: [YYYY-MM-DD HH:MM] ACTION target — brief outcome
+
+Before marking the task complete, ensure execution.log is up to date if config.execution_log is true.
+
+### Spec Accumulation [required·once]
+10. Before archiving, review worklog.md for new conventions, patterns, forbidden practices, or gotchas discovered during this task. If any found → trigger vflow-spec flow (draft entry → user confirmation → write to spec/)
+
+### Pre-Archive Checks [required·once]
+11. Verify all plan.md checklist items are checked (or user-confirmed scope reduction is noted)
+12. Archive: `python .vflow/scripts/task.py done --summary "<one-line outcome including new test count>"`
+
+NOTE: `task.py done` validates that verify.md is filled and plan.md has no unchecked items.
+Use `task.py done --force` only if the user explicitly confirms bypassing checks.
+
+### Prohibited
+- Skipping test hard rule (exempt only for: pure comment/doc changes, or config.test_required=false)
+- Declaring completion without real command output in verify.md
+- Archiving with unchecked plan items (unless user confirms scope reduction and it's noted in plan.md)
+- Deviating from the confirmed plan without informing the user
 [/workflow-state:in_progress]

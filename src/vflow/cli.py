@@ -128,6 +128,13 @@ def do_setup(quiet=False):
         p = os.path.join(CLAUDE_HOME, "skills", s)
         if os.path.isdir(p):
             shutil.rmtree(p)
+    # Clean up old dash-format commands that may coexist with colon-format
+    old_cmd_dir = os.path.join(CLAUDE_HOME, "commands")
+    if os.path.isdir(old_cmd_dir):
+        for f in os.listdir(old_cmd_dir):
+            if f.startswith("vflow-") and f.endswith(".md"):
+                os.remove(os.path.join(old_cmd_dir, f))
+                say("  [cleanup] removed old global command %s" % f)
     merge_global_hooks()
     say("  [合并] ~/.claude/settings.json（全局检测 hooks）")
     write_json(STAMP, {"version": __version__, "python": sys.executable})
@@ -209,7 +216,14 @@ def install_project_claude(dst_root):
         p = os.path.join(cl, rel)
         if os.path.exists(p):
             os.remove(p)
-            print("  [清理] .claude/%s（已迁移至 commands/vflow/）" % rel)
+            print("  [cleanup] .claude/%s (migrated to commands/vflow/)" % rel)
+    # 清理旧 dash-format 命令（vflow-task.md → 应该只存在 vflow/task.md）
+    cmd_parent = os.path.join(cl, "commands")
+    if os.path.isdir(cmd_parent):
+        for f in os.listdir(cmd_parent):
+            if f.startswith("vflow-") and f.endswith(".md"):
+                os.remove(os.path.join(cmd_parent, f))
+                print("  [cleanup] .claude/commands/%s (old dash-format)" % f)
 
 
 def append_gitignore(dst_root):
@@ -322,14 +336,14 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("setup", help="安装/刷新全局资产（hooks/commands/skills）")
     pi = sub.add_parser("init", help="为项目启用 vflow")
-    pi.add_argument("target")
+    pi.add_argument("target", nargs="?", default=".")
     pi.add_argument("--yes", action="store_true", help="静默默认配置（不交互）")
     pi.add_argument("--reconfigure", action="store_true")
     pu = sub.add_parser("update", help="更新项目的受管文件")
-    pu.add_argument("target")
+    pu.add_argument("target", nargs="?", default=".")
     pu.add_argument("--spec", action="store_true", help="同时覆盖规范库")
     pd = sub.add_parser("decline", help="标记项目不启用（不再询问）")
-    pd.add_argument("target")
+    pd.add_argument("target", nargs="?", default=".")
     ps = sub.add_parser("status", help="查看项目状态")
     ps.add_argument("target", nargs="?", default=".")
     args = ap.parse_args()

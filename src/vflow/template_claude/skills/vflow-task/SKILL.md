@@ -1,52 +1,84 @@
 ---
 name: vflow-task
-description: vflow 标准任务（T2）五阶段全流程编排：需求澄清→方案设计→实现→质量自检→归档。当任务判级为 T2、用户使用 /task 命令、或 vflow-state 指示进入标准任务流程时使用。
+description: "vflow standard task (T2) five-stage workflow: requirement clarification → design → implementation → quality check → archive. Use when task is classified as T2, user invokes /vflow:task, or vflow-state directs standard task flow."
 ---
 
-# vflow 标准任务流程
+# vflow Standard Task Workflow
 
-按五阶段执行标准任务，产出完整任务档案。所有决策留痕，所有完成有证据。
+Execute a standard task through five stages, producing a complete task archive.
+All decisions are recorded. All completions have evidence.
 
-## Input 契约
+## Input Contract
 
-- 用户的任务描述（已判级为 T2）
-- 当前 <vflow-state> 注入的状态与任务信息
-- `.vflow/config.json`（features 过滤规范、core_paths 判风险、build 命令）
+- User's task description (classified as T2)
+- Current <vflow-state> injection with state and task info
+- `.vflow/config.json` (features filter specs, core_paths determine risk, build commands)
 
 ## Steps
 
-1. **建档**：`python .vflow/scripts/task.py create <slug> --title "<标题>"`（slug 用英文短横线，如 roundness-algo）
-2. **需求澄清**（phase=requirement）：
-   - 一次只问一个问题，根据回答追问，直到需求明确
-   - 结论写入任务目录 `requirement.md`（已按模板预置，填空即可）
-   - 完成后 `python .vflow/scripts/task.py set phase plan`
-3. **方案设计**（phase=plan）：
-   - 草稿先在对话中完整展示（含改动清单、关键决策、**测试方案**）
-   - 风险判定：涉及 core_paths / >3 文件 / 不可逆操作 = high，否则 low；执行 `task.py set risk {low|high}`
-   - 低风险：声明"低风险，将直接继续" → 落盘 plan.md → 第 4 步
-   - 高风险：🛑 输出"高风险任务，请确认方案（回复 ok/可以/行 继续）"并停止；得到确认才落盘 plan.md（含审批记录）→ 第 4 步
-4. **实现**（`python .vflow/scripts/task.py start`）：
-   - 写码前读取 spec/ 中与本任务相关主题的正文（按 config features 过滤）
-   - 按 plan.md「任务清单」逐项实现：完成一项勾选 `[x]` 并向 worklog.md 追加一行；跨会话续做从第一个未勾选项继续
-   - 测试硬规则（config.test_required=false 时豁免）：无测试目录 → 先用 vflow-test 建骨架；新增类/公共接口 → 同步写测试用例
-5. **质量自检**（`task.py set phase verify`）：
-   - 调用 vflow-review 流程自检（**高风险任务必须用其独立评审模式**），结果写入 verify.md
-   - 运行 config.build 的构建与测试命令，**真实输出**粘贴进 verify.md
-   - 高风险：🛑 展示自检报告，等用户确认
-6. **归档**：确认任务清单全部勾选（或裁剪已获用户确认并注明）→ `python .vflow/scripts/task.py done --summary "<一句话产出，含新增测试数>"`
+### 1. Create Task [required·once]
+`python .vflow/scripts/task.py create <slug> --title "<title>"`
+(slug: lowercase English with dashes, e.g. roundness-algo)
 
-## Output 模板
+### 2. Requirement Clarification (phase=requirement) [required·once]
+- Ask one question at a time; follow up based on answers until requirements are clear
+- Write conclusions to `requirement.md` in the task directory (template is pre-populated, fill in the blanks)
+- When done: `python .vflow/scripts/task.py set phase plan`
 
-阶段转换时用一行明示进度：
-「✅ 阶段完成：{需求澄清|方案设计|实现|自检}。下一步：{...}」
+### 3. Design (phase=plan) [required·once]
+- Show the full draft in conversation (change list, key decisions, **test plan**)
+- Risk determination: touches core_paths / >3 files / irreversible operation = high, else low
+- Run: `python .vflow/scripts/task.py set risk {low|high}`
+- Low risk: state "Low risk, proceeding directly" → write plan.md → step 4
+- High risk: 🛑 STOP. Output "High-risk task. Please confirm the plan (reply ok/confirm/可以/行 to proceed)". Wait for user confirmation → write plan.md (include approval record) → step 4
 
-归档后输出：
-「📦 任务已归档：tasks/archive/YYYY-MM/<id>/，日志已记录。产出：{摘要}」
+### 4. Implementation [required·repeatable]
+Run: `python .vflow/scripts/task.py start`
+
+NOTE: `task.py start` validates that requirement.md and plan.md are filled with real content.
+If validation fails: complete the planning documents first.
+If the user explicitly wants to skip planning: use `task.py start --skip` (records planning_skipped in task.json).
+
+- Before coding, read relevant spec/ files for this task's topics (filter by config features)
+- Implement items from plan.md task checklist one by one: check `[x]` after each item, append a line to worklog.md
+- When resuming across sessions, continue from the first unchecked item
+- If the user changes scope during implementation, update plan.md checklist BEFORE coding the change
+- Test hard rule (exempt if config.test_required=false): no test dir → create with vflow-test; new class/public interface → write test cases
+
+### 5. Quality Check (phase=verify) [required·once]
+Run: `python .vflow/scripts/task.py set phase verify`
+
+- Execute vflow-review flow (**high-risk tasks must use independent review mode**: dispatch a fresh-context sub-agent)
+- Write results to verify.md
+- Run config.build commands, **paste real output** into verify.md
+- High risk: 🛑 STOP. Show review report, wait for user confirmation
+
+### 5.5 Spec Accumulation [required·once]
+Before archiving, review worklog.md for new insights:
+- New conventions, patterns, forbidden practices, or gotchas discovered during this task
+- If any found → trigger vflow-spec flow (draft entry → user confirmation → write to spec/)
+- If nothing new → skip silently
+
+### 6. Archive [required·once]
+Verify all plan.md checklist items are checked (or user-confirmed scope reduction is noted).
+
+Run: `python .vflow/scripts/task.py done --summary "<one-line outcome including new test count>"`
+
+NOTE: `task.py done` validates verify.md is filled and plan.md has no unchecked items.
+Use `--force` only if the user explicitly confirms bypassing checks.
+
+## Output Templates
+
+Stage transitions — state progress in one line:
+"✅ Phase complete: {Requirement|Design|Implementation|Review}. Next: {…}"
+
+After archival:
+"📦 Task archived: tasks/archive/YYYY-MM/<id>/. Output: {summary}"
 
 ## Guardrails
 
-- 高风险任务未获确认前禁止写实现代码
-- verify.md 没有真实命令输出时禁止执行 done
-- 实现中发现方案需要调整 → 先告知用户并更新 plan.md，再继续
-- 任何阶段用户说「直接改」→ 尊重逃生短语，但测试硬规则和规范仍然有效
-- 禁止把注入的 <vflow-state>/<vflow-context> 内容复制进产物文件
+- High-risk tasks: no implementation code before user confirmation
+- Cannot run `task.py done` without real command output in verify.md
+- Plan deviation during implementation → inform user and update plan.md first
+- Skip Detection Rule (from workflow.md): only explicit skip phrases bypass planning. Implementation strategy phrases ("use goal mode", "fix file by file") are NOT skip signals.
+- Do not copy injected <vflow-state>/<vflow-context> content into deliverable files

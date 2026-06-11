@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""vflow hook 注入脚本。
+"""vflow hook injection script.
 
-用法（由 .claude/settings.json 注册，cwd = 项目根目录）:
-  python .vflow/scripts/inject.py prompt    # UserPromptSubmit: 注入当前状态面包屑
-  python .vflow/scripts/inject.py session   # SessionStart: 注入项目上下文 + 规范索引
-输出到 stdout 的文本会被加入对话上下文。任何异常都静默退出，不阻塞对话。
+Usage (registered in .claude/settings.json, cwd = project root):
+  python .vflow/scripts/inject.py prompt    # UserPromptSubmit: inject current state breadcrumb
+  python .vflow/scripts/inject.py session   # SessionStart: inject project context + spec index
+Output to stdout is added to conversation context. Errors exit silently.
 """
 import json
 import os
@@ -21,6 +21,10 @@ WORKFLOW = os.path.join(ROOT, "workflow.md")
 SPEC_INDEX = os.path.join(ROOT, "spec", "index.md")
 CONFIG = os.path.join(ROOT, "config.json")
 
+SKIP_DETECTION_SUMMARY = """Skip Detection Rule: ONLY these exact user phrases constitute a skip signal:
+  "skip" | "直接做" | "跳过" | "不用规划" | "不走流程"
+Implementation strategy phrases (e.g. "use goal mode", "fix file by file") are NOT skip signals."""
+
 
 def read(path):
     try:
@@ -30,19 +34,28 @@ def read(path):
         return ""
 
 
+def read_json(path, default=None):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
 def current_status():
     name = read(POINTER).strip()
     if not name:
-        return "no_task", None
-    tj = os.path.join(ROOT, "tasks", name, "task.json")
+        return "no_task", None, None
+    task_dir = os.path.join(ROOT, "tasks", name)
+    tj = os.path.join(task_dir, "task.json")
     try:
         t = json.loads(read(tj))
         status = t.get("status", "no_task")
         if status == "completed":
-            return "no_task", None
-        return status, t
+            return "no_task", None, None
+        return status, t, task_dir
     except Exception:
-        return "no_task", None
+        return "no_task", None, None
 
 
 def state_block(status):
@@ -52,44 +65,85 @@ def state_block(status):
     return m.group(1).strip() if m else ""
 
 
+def unchecked_items(task_dir):
+    """Read plan.md and return unchecked checklist items."""
+    if not task_dir:
+        return []
+    plan = os.path.join(task_dir, "plan.md")
+    if not os.path.exists(plan):
+        return []
+    items = []
+    with open(plan, encoding="utf-8") as f:
+        for line in f:
+            if line.strip().startswith("- [ ]"):
+                items.append(line.strip()[6:].strip())
+    return items
+
+
 def do_prompt():
-    status, task = current_status()
+    status, task, task_dir = current_status()
     block = state_block(status)
     if not block:
         return
     lines = ["<vflow-state>"]
     if task:
-        lines.append("当前任务: %s | %s | tier=%s phase=%s risk=%s" % (
+        lines.append("Active task: %s | %s | tier=%s phase=%s risk=%s" % (
             task.get("id"), task.get("title"), task.get("tier"),
             task.get("phase"), task.get("risk")))
+
     lines.append(block)
+
+    if status == "in_progress" and task_dir:
+        items = unchecked_items(task_dir)
+        if items:
+            lines.append("")
+            lines.append("Remaining checklist (from plan.md):")
+            for item in items:
+                lines.append("  - [ ] %s" % item)
+            lines.append("If the user changes scope, update plan.md checklist BEFORE implementing.")
+
+    cfg = read_json(CONFIG, {})
+    if cfg.get("execution_log"):
+        lines.append("")
+        lines.append("Execution logging is ON. Append to execution.log after each significant "
+                      "action (key file reads, edits, writes, command runs, test/build results, "
+                      "consequential decisions), and verify it before task completion.")
+
     lines.append("</vflow-state>")
     print("\n".join(lines))
 
 
 def do_session():
-    cfg = {}
-    try:
-        cfg = json.loads(read(CONFIG))
-    except Exception:
-        pass
-    lines = ["<vflow-context>",
-             "本项目启用 vflow 工作流（流程定义: .vflow/workflow.md）。"]
+    cfg = read_json(CONFIG, {})
     feats = cfg.get("features") or {}
     on = [k for k, v in feats.items() if v]
-    lines.append("项目: %s | 语言: %s | 特性: %s | 测试硬规则: %s" % (
-        cfg.get("project", "?"), cfg.get("language", "?"),
-        ",".join(map(str, on)) if on else "无",
-        "启用" if cfg.get("test_required", True) else "关闭"))
-    status, task = current_status()
+    lines = [
+        "<vflow-context>",
+        "This project uses the vflow workflow (definition: .vflow/workflow.md).",
+        "Project: %s | Language: %s | Features: %s | Test required: %s" % (
+            cfg.get("project", "?"), cfg.get("language", "?"),
+            ", ".join(map(str, on)) if on else "none",
+            "yes" if cfg.get("test_required", True) else "no"),
+    ]
+    if cfg.get("execution_log"):
+        lines.append("Execution logging: enabled")
+
+    status, task, _ = current_status()
     if task:
-        lines.append("活动任务: %s (status=%s phase=%s)" % (
+        lines.append("Active task: %s (status=%s phase=%s)" % (
             task.get("id"), task.get("status"), task.get("phase")))
     else:
-        lines.append("当前无活动任务。")
+        lines.append("No active task.")
+
+    lines.append("")
+    lines.append(SKIP_DETECTION_SUMMARY)
+
     idx = read(SPEC_INDEX)
     if idx:
-        lines.append("\n--- 规范索引（正文按需读取，勿全量预读） ---\n" + idx)
+        lines.append("")
+        lines.append("--- Spec index (read full spec files on demand, do not preload) ---")
+        lines.append(idx)
+
     lines.append("</vflow-context>")
     print("\n".join(lines))
 

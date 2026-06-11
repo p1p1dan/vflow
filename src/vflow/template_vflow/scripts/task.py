@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""vflow 任务状态管理（唯一状态写入者）。
+"""vflow task state management (sole state writer).
 
-用法:
-  python .vflow/scripts/task.py create <slug> --title "标题" [--tier T2]
+Usage:
+  python .vflow/scripts/task.py create <slug> --title "title" [--tier T2]
   python .vflow/scripts/task.py set <key> <value>      # key: risk|phase
-  python .vflow/scripts/task.py start                  # planning -> in_progress
-  python .vflow/scripts/task.py done --summary "一句话产出"
+  python .vflow/scripts/task.py start [--skip]          # planning -> in_progress
+  python .vflow/scripts/task.py done --summary "..." [--force]
   python .vflow/scripts/task.py status
 """
 import argparse
 import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -50,12 +51,57 @@ def current_task_dir():
     return d if os.path.isdir(d) else None
 
 
+def _is_filled(path):
+    """Check if a template file has been filled with real content.
+
+    Strategy: store a hash of the original template at creation time,
+    then compare. Also catch empty/near-empty files.
+    """
+    if not os.path.exists(path):
+        return False
+    with open(path, encoding="utf-8") as f:
+        content = f.read()
+    stripped = content.strip()
+    if not stripped:
+        return False
+    hash_file = path + ".hash"
+    if os.path.exists(hash_file):
+        with open(hash_file, encoding="utf-8") as f:
+            original_hash = f.read().strip()
+        import hashlib
+        current_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+        return current_hash != original_hash
+    non_empty = [l for l in content.splitlines()
+                 if l.strip()
+                 and not l.strip().startswith("#")
+                 and not l.strip().startswith("<!--")
+                 and not l.strip().startswith("|")
+                 and not l.strip().startswith("---")
+                 and not l.strip().startswith(">")
+                 and not l.strip().startswith("- [ ]")]
+    meaningful = [l for l in non_empty if not re.match(r"^-\s*\S+：\s*$", l.strip())]
+    return len(meaningful) >= 3
+
+
+def _unchecked_items(task_dir):
+    """Return list of unchecked checklist items from plan.md."""
+    plan = os.path.join(task_dir, "plan.md")
+    if not os.path.exists(plan):
+        return []
+    items = []
+    with open(plan, encoding="utf-8") as f:
+        for line in f:
+            if line.strip().startswith("- [ ]"):
+                items.append(line.strip()[6:].strip())
+    return items
+
+
 def cmd_create(args):
     today = datetime.date.today()
     name = "%02d-%02d-%s" % (today.month, today.day, args.slug)
     d = os.path.join(TASKS, name)
     if os.path.exists(d):
-        print("[vflow] 任务已存在: %s" % name)
+        print("[vflow] Task already exists: %s" % name)
         return 1
     os.makedirs(d)
     write_json(os.path.join(d, "task.json"), {
@@ -68,26 +114,36 @@ def cmd_create(args):
         "created": datetime.datetime.now().isoformat(timespec="seconds"),
     })
     tpl = os.path.join(ROOT, "templates")
+    import hashlib
     for f in ("requirement.md", "plan.md"):
         src = os.path.join(tpl, f)
         if os.path.exists(src):
-            shutil.copy(src, os.path.join(d, f))
+            dst = os.path.join(d, f)
+            shutil.copy(src, dst)
+            with open(dst, encoding="utf-8") as fh:
+                h = hashlib.sha256(fh.read().encode("utf-8")).hexdigest()[:16]
+            with open(dst + ".hash", "w", encoding="utf-8") as fh:
+                fh.write(h)
+    cfg = read_json(CONFIG, {})
+    if cfg.get("execution_log"):
+        with open(os.path.join(d, "execution.log"), "w", encoding="utf-8") as f:
+            f.write("")
     os.makedirs(RUNTIME, exist_ok=True)
     with open(POINTER, "w", encoding="utf-8") as f:
         f.write(name)
-    print("[vflow] 已创建任务 %s (status=planning, phase=requirement)" % name)
+    print("[vflow] Created task %s (status=planning, phase=requirement)" % name)
     return 0
 
 
 def cmd_set(args):
     d = current_task_dir()
     if not d:
-        print("[vflow] 无活动任务")
+        print("[vflow] No active task")
         return 1
     p = os.path.join(d, "task.json")
     t = read_json(p)
     if args.key not in ("risk", "phase"):
-        print("[vflow] 仅支持 set risk|phase")
+        print("[vflow] Only 'risk' and 'phase' can be set")
         return 1
     t[args.key] = args.value
     write_json(p, t)
@@ -98,24 +154,48 @@ def cmd_set(args):
 def cmd_start(args):
     d = current_task_dir()
     if not d:
-        print("[vflow] 无活动任务")
+        print("[vflow] No active task")
         return 1
     p = os.path.join(d, "task.json")
     t = read_json(p)
+
+    if args.skip:
+        t["planning_skipped"] = True
+        print("[vflow] Planning skipped by user request (--skip)")
+    else:
+        req = os.path.join(d, "requirement.md")
+        plan = os.path.join(d, "plan.md")
+        errors = []
+        if not _is_filled(req):
+            errors.append("requirement.md is not filled (still template or missing)")
+        if not _is_filled(plan):
+            errors.append("plan.md is not filled (still template or missing)")
+        if errors:
+            print("[vflow] ERROR: Cannot start implementation. Planning docs incomplete:")
+            for e in errors:
+                print("  - %s" % e)
+            print("Complete planning first, or use --skip to bypass (records planning_skipped in task.json).")
+            return 1
+
     t["status"] = "in_progress"
     t["phase"] = "implement"
     write_json(p, t)
     tpl = os.path.join(ROOT, "templates")
+    import hashlib
     for f in ("verify.md",):
         src = os.path.join(tpl, f)
         dst = os.path.join(d, f)
         if os.path.exists(src) and not os.path.exists(dst):
             shutil.copy(src, dst)
+            with open(dst, encoding="utf-8") as fh:
+                h = hashlib.sha256(fh.read().encode("utf-8")).hexdigest()[:16]
+            with open(dst + ".hash", "w", encoding="utf-8") as fh:
+                fh.write(h)
     wl = os.path.join(d, "worklog.md")
     if not os.path.exists(wl):
         with open(wl, "w", encoding="utf-8") as f:
-            f.write("# 实现记录\n\n| 时间 | 文件 | 改动说明 |\n| :--- | :--- | :--- |\n")
-    print("[vflow] 任务进入实现阶段 (status=in_progress)")
+            f.write("# Implementation Log\n\n| Time | File | Change |\n| :--- | :--- | :--- |\n")
+    print("[vflow] Task entered implementation phase (status=in_progress)")
     return 0
 
 
@@ -139,7 +219,7 @@ def append_journal(task, summary):
     new = not os.path.exists(jp)
     with open(jp, "a", encoding="utf-8") as f:
         if new:
-            f.write("# 开发者日志\n\n")
+            f.write("# Developer Journal\n\n")
         f.write(line + "\n")
     cfg = read_json(CONFIG, {})
     nb = (cfg.get("journal") or {}).get("notebook_path")
@@ -154,10 +234,31 @@ def append_journal(task, summary):
 def cmd_done(args):
     d = current_task_dir()
     if not d:
-        print("[vflow] 无活动任务")
+        print("[vflow] No active task")
         return 1
     p = os.path.join(d, "task.json")
     t = read_json(p)
+
+    if args.force:
+        t["force_archived"] = True
+        print("[vflow] Archiving with --force (skipping completion checks)")
+    else:
+        errors = []
+        verify = os.path.join(d, "verify.md")
+        if not _is_filled(verify):
+            errors.append("verify.md is not filled (must contain real build/test output)")
+        unchecked = _unchecked_items(d)
+        if unchecked:
+            errors.append("%d unchecked items in plan.md:" % len(unchecked))
+            for item in unchecked:
+                errors.append("  - [ ] %s" % item)
+        if errors:
+            print("[vflow] ERROR: Cannot archive. Completion checks failed:")
+            for e in errors:
+                print("  %s" % e)
+            print("Complete remaining items, or use --force to bypass (records force_archived in task.json).")
+            return 1
+
     t["status"] = "completed"
     t["completed"] = datetime.datetime.now().isoformat(timespec="seconds")
     write_json(p, t)
@@ -168,14 +269,14 @@ def cmd_done(args):
     append_journal(t, args.summary or "")
     if os.path.exists(POINTER):
         os.remove(POINTER)
-    print("[vflow] 任务已归档至 %s，日志已记录" % os.path.relpath(dst, ROOT))
+    print("[vflow] Task archived to %s" % os.path.relpath(dst, ROOT))
     return 0
 
 
 def cmd_status(args):
     d = current_task_dir()
     if not d:
-        print("[vflow] 无活动任务 (no_task)")
+        print("[vflow] No active task (no_task)")
         return 0
     t = read_json(os.path.join(d, "task.json"), {})
     print("[vflow] %s | %s | status=%s phase=%s risk=%s" % (
@@ -193,9 +294,13 @@ def main():
     s = sub.add_parser("set")
     s.add_argument("key")
     s.add_argument("value")
-    sub.add_parser("start")
+    st = sub.add_parser("start")
+    st.add_argument("--skip", action="store_true",
+                     help="Skip planning validation (records planning_skipped in task.json)")
     dn = sub.add_parser("done")
     dn.add_argument("--summary", default="")
+    dn.add_argument("--force", action="store_true",
+                     help="Skip completion checks (records force_archived in task.json)")
     sub.add_parser("status")
     args = ap.parse_args()
     return {"create": cmd_create, "set": cmd_set, "start": cmd_start,

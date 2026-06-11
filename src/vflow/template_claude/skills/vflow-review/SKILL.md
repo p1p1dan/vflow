@@ -1,57 +1,72 @@
 ---
 name: vflow-review
-description: 按 vflow 规范库对代码改动做三维三级自检（完整性/正确性/一致性 × CRITICAL/WARNING/SUGGESTION）。标准任务自检阶段自动使用；用户也可随时说"按规范检查一下"独立调用。
+description: "Three-dimensional, three-level code review against vflow spec library (completeness / correctness / consistency × CRITICAL / WARNING / SUGGESTION). Auto-used during standard task quality check phase; user can also invoke independently with 'check against spec'."
 ---
 
-# vflow 规范自检与评审
+# vflow Spec Review
 
-按 .vflow/spec/ 规范逐条对照本次改动，输出可操作的分级问题清单。
+Compare current changes against .vflow/spec/ conventions line by line, producing an actionable graded issue list.
 
-## Input 契约
+## Input Contract
 
-- 评审范围：当前任务改动的文件（git diff 或 worklog.md 列出的文件）；独立调用时由用户指定
-- `.vflow/spec/index.md` + 按 config.json features 过滤后的规范正文
-- 任务档案（如有）：requirement.md / plan.md 用于核对完整性
+- Review scope: files changed in the current task (git diff or files listed in worklog.md); when invoked independently, scope is user-specified
+- `.vflow/spec/index.md` + spec content filtered by config.json features
+- Task archive (if available): requirement.md / plan.md for completeness checking
 
 ## Steps
 
-1. **确定范围**：列出本次改动的文件清单（优先 `git diff --name-only`，否则按 worklog.md）
-2. **加载规范**：读 spec/index.md → 按改动涉及主题读取对应正文；按 features 排除未启用模块（如 qt:false 不查 Qt 条目）
-3. **三维检查**：
-   - 完整性：plan.md 的改动清单和任务清单是否全部完成（checkbox 全勾）？测试方案承诺的用例是否都写了？
-   - 正确性：实现是否符合 requirement.md 的验收标准？边界条件是否处理？
-   - 一致性：逐条对照规范——违反【规】级 → CRITICAL（核心安全/资源类）或 WARNING（风格/结构类）；违反【建】级 → SUGGESTION
-4. **置信度过滤**：只报告置信度高（确定违反、能指出具体条目）的问题；拿不准时降级（WARNING→SUGGESTION）或不报
-5. **输出报告**（见模板），任务流程中同时写入 verify.md 的自检节
-6. **独立评审模式**（高风险任务必用；用户也可随时要求"独立评审"）：
-   - 不在主会话自检，改用 Agent 工具派发一个全新上下文的子代理执行评审——避免"自己写的代码自己查"的确认偏误
-   - 派发 prompt 必须自包含：评审文件清单 + requirement.md/plan.md 路径 + 需读取的规范文件路径 + 本 SKILL.md 的三维三级标准与输出模板 + "只输出报告，禁止修改任何文件"
-   - 子代理回报后，主会话将报告原样写入 verify.md 并标注"独立评审"；主会话不得删改子代理发现的问题，可补充修复计划
+### 1. Determine Scope [required·once]
+List all files changed in this task (prefer `git diff --name-only`, fall back to worklog.md).
 
-## Output 模板
+### 2. Load Specs [required·once]
+Read spec/index.md → read relevant spec files based on changed topics; exclude disabled modules (e.g. qt:false → skip Qt entries).
+
+### 3. Three-Dimensional Check [required·once]
+
+**Completeness**: Are all plan.md change items and checklist items done (all checkboxes ticked)? Are all test cases promised in the test plan written?
+
+**Correctness**: Does the implementation meet requirement.md acceptance criteria? Are edge cases handled?
+
+**Consistency**: Check against spec entries line by line:
+- Violates [RULE] level → CRITICAL (core safety / resource) or WARNING (style / structure)
+- Violates [SUGGEST] level → SUGGESTION
+
+### 4. Confidence Filter [required·once]
+Only report high-confidence findings (definite violation, specific spec entry cited). When uncertain, downgrade (WARNING → SUGGESTION) or omit.
+
+### 5. Output Report [required·once]
+(See template below.) In task workflow, also write results to the review section of verify.md.
+
+### 6. Independent Review Mode [on demand]
+(Mandatory for high-risk tasks; user can also request "independent review" at any time)
+- Do NOT self-review in the main conversation. Instead, dispatch a fresh-context sub-agent via the Agent tool to perform the review — avoids "reviewing your own code" confirmation bias.
+- Dispatch prompt must be self-contained: file list + requirement.md/plan.md paths + spec file paths to read + the 3D/3-level criteria and output template from this skill + "output report only, do not modify any files"
+- After sub-agent reports back, write the report verbatim into verify.md marked as "Independent Review". The main conversation must not delete or alter sub-agent findings; it may add a remediation plan.
+
+## Output Template
 
 ```
-## 规范自检报告
+## Spec Review Report
 
-范围：N 个文件 | 启用规范：common + cpp [+ qt/embedded]
+Scope: N files | Specs loaded: common + <language> [+ qt/embedded]
 
-| 维度 | 结论 |
-| 完整性 | ✅/⚠ {说明} |
-| 正确性 | ✅/⚠ {说明} |
-| 一致性 | {X CRITICAL / Y WARNING / Z SUGGESTION} |
+| Dimension | Result |
+| Completeness | ✅/⚠ {details} |
+| Correctness | ✅/⚠ {details} |
+| Consistency | {X CRITICAL / Y WARNING / Z SUGGESTION} |
 
-### CRITICAL（必须修复）
-- file.cpp:42 {问题} → {修复建议}（违反 cpp.md#57 基类虚析构）
+### CRITICAL (must fix)
+- file.cpp:42 {issue} → {fix suggestion} (violates cpp.md#57 base class virtual destructor)
 
-### WARNING（应当修复）
+### WARNING (should fix)
 ...
-### SUGGESTION（建议）
+### SUGGESTION (advisory)
 ...
 ```
 
 ## Guardrails
 
-- 每个问题必须给出 文件:行号 和违反的具体规范条目，禁止"建议整体review一下"式的模糊输出
-- 不评审范围外的存量代码（除非用户明确要求）——遵循"新码从严、存量随旧"
-- CRITICAL 存在时明确声明"不建议归档，先修复"
-- 自己刚写的代码自己查出问题不丢人，漏报才是失职
+- Every finding must include file:line and the specific spec entry violated — no vague "suggest reviewing overall" outputs
+- Do not review pre-existing code outside the change scope (unless user explicitly requests) — follow "strict on new code, lenient on legacy"
+- When CRITICAL findings exist, explicitly state "archival not recommended until fixed"
+- Finding issues in your own code is not a failure — missing them is

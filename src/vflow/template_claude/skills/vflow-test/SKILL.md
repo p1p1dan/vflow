@@ -1,43 +1,43 @@
 ---
 name: vflow-test
-description: 测试基建创建与用例生成：项目无测试目录时创建测试骨架（gtest/Qt Test/pytest + 构建集成），或为指定类/接口生成单元测试用例。实现阶段检测到无测试基建时自动使用；用户也可说"给XX加测试"独立调用。
+description: "Test infrastructure creation and case generation: creates test scaffold (gtest / Qt Test / pytest + build integration) when no test directory exists, or generates unit test cases for specified classes/interfaces. Auto-used during implementation when no test infra is detected; user can also say 'add tests for XX' independently."
 ---
 
-# vflow 测试基建与用例生成
+# vflow Test Infrastructure & Case Generation
 
-落实"新增代码必须有测试"的硬规则：先有骨架，再有用例，最后有真实运行证据。
+Enforce "new code must have tests": scaffold first, cases second, real execution evidence last.
 
-## Input 契约
+## Input Contract
 
-- 模式 A（建骨架）：项目根目录 + 构建系统类型（CMake/qmake/VS 工程，从项目文件自动探测）
-- 模式 B（生成用例）：目标类/接口的源码 + 头文件
-- `.vflow/config.json`（language、features.qt、build.test_command）
+- Mode A (scaffold): project root + build system type (CMake / qmake / VS project, auto-detected from project files)
+- Mode B (generate cases): target class/interface source + header files
+- `.vflow/config.json` (language, features.qt, build.test_command)
 
 ## Steps
 
-### 模式 A：创建测试骨架（仅首次）
+### Mode A: Create Test Scaffold (first time only) [required·once]
 
-1. 探测构建系统：CMakeLists.txt → CMake；*.pro → qmake；*.vcxproj/*.sln → VS
-2. 框架选型：Qt 项目（features.qt=true）→ Qt Test（零额外依赖）；非 Qt C++ → gtest（无包管理环境备选 doctest 单头文件）；Python → pytest
-3. 创建 `tests/` 目录（镜像源码结构）+ 一条冒烟测试（如 1+1==2）+ 构建集成（CMake: enable_testing+add_subdirectory；qmake: subdirs+QT+=testlib；VS: 测试工程）
-4. **编译并运行冒烟测试**，确认骨架可用——失败则修到通过，不留半成品
-5. 把测试运行命令写入 config.json 的 build.test_command
+1. Detect build system: CMakeLists.txt → CMake; *.pro → qmake; *.vcxproj/*.sln → VS
+2. Framework selection: Qt project (features.qt=true) → Qt Test (zero extra dependencies); non-Qt C++ → gtest (fallback: doctest single-header if no package manager); Python → pytest
+3. Create `tests/` directory (mirror source structure) + one smoke test (e.g. 1+1==2) + build integration (CMake: enable_testing + add_subdirectory; qmake: subdirs + QT+=testlib; VS: test project)
+4. **Compile and run the smoke test** — confirm scaffold works. If it fails, fix until green. No half-finished scaffolds.
+5. Write the test run command to config.json build.test_command
 
-### 模式 B：生成测试用例
+### Mode B: Generate Test Cases [required·repeatable]
 
-1. 读目标类/接口源码，列出公共接口清单
-2. 每个接口设计用例：正常路径 ≥1 + 边界条件（空输入/极值/非法参数）≥1；算法类补充已知输入→已知输出的样本断言
-3. 命名遵循 spec/common/testing.md 第 4 条：`被测行为_条件_预期`
-4. 写入 tests/ 对应位置，**编译并运行**，粘贴真实输出
+1. Read target class/interface source, list public interface inventory
+2. Design cases per interface: happy path ≥1 + edge cases (empty input / extreme values / invalid parameters) ≥1; for algorithms, add known-input → known-output sample assertions
+3. Naming follows spec/common/testing.md: `behavior_condition_expected`
+4. Write to corresponding location in tests/, **compile and run**, paste real output
 
-## Output 模板
+## Output Template
 
-「🧪 测试骨架已建立：{框架} + {构建系统}，冒烟测试通过（输出：...）」
-「🧪 已为 {类名} 新增 {N} 个用例（{M} 通过 / {K} 失败），输出：...」
+"🧪 Test scaffold created: {framework} + {build system}, smoke test passed (output: ...)"
+"🧪 Added {N} cases for {class}: {M} passed / {K} failed (output: ...)"
 
 ## Guardrails
 
-- 不允许只写测试代码不运行就报告完成
-- 测试失败时：先判断是测试写错还是被测代码有 bug——是 bug 则报告用户，不为了变绿而改弱断言
-- 需要图像样本的测试：样本放 tests/data/，禁止依赖机器上的绝对路径
-- 不为 getter/setter 之类无逻辑代码生成凑数用例
+- Never report completion without actually running the tests
+- When tests fail: determine whether the test is wrong or the code has a bug — if it's a bug, report to user. Do not weaken assertions to force green.
+- Tests needing image samples: place samples in tests/data/, never depend on machine-specific absolute paths
+- Do not generate filler tests for trivial getter/setter methods with no logic

@@ -1,37 +1,66 @@
 ---
 name: vflow-spec
-description: 规范库知识回写：把实现/调试中沉淀的约定写入 .vflow/spec/ 并更新索引。当用户说"把这个记进规范"/"这个应该成为规范"，或任务收尾时发现值得沉淀的约定时使用。
+description: "Spec library knowledge writeback: capture conventions, patterns, and gotchas from implementation/debugging into .vflow/spec/ and update the index. Use when the user says 'record this in spec' / 'this should be a spec', or during task closeout when a valuable convention is discovered."
 ---
 
-# vflow 规范回写
+# vflow Spec Writeback
 
-让规范库随实践成长——一次会话学到的，沉淀给未来所有会话。
+Make the spec library grow with practice — what one session learns, every future session inherits.
 
-## Input 契约
+## Input Contract
 
-- 待沉淀的约定内容（来自对话上下文：踩过的坑、确认过的写法、用户拍板的决策）
-- `.vflow/spec/index.md` 与目标规范文件现状
+- Content to capture (from conversation context: lessons learned, confirmed approaches, user-approved decisions)
+- Current state of `.vflow/spec/index.md` and target spec file
+
+## Classification
+
+Every entry must be classified into one of these categories (Trellis-style):
+
+| Category | Meaning | Example |
+| :--- | :--- | :--- |
+| **Convention** | Team agreement on naming, formatting, structure | "Prefix private members with m_" |
+| **Pattern** | Verified implementation approach | "Use RAII for resource cleanup in device drivers" |
+| **Forbidden** | Explicitly banned practice | "Never use raw new/delete in application code" |
+| **Gotcha** | Counter-intuitive trap | "Qt signal/slot across threads requires QueuedConnection" |
 
 ## Steps
 
-1. **判断归属**：语言无关原则 → common/ 对应文件；C++ 特有 → lang/cpp.md 对应主题节；Qt/嵌入式/封装特有 → modules/ 对应文件
-2. **查重**：读目标文件，确认无重复或冲突条目；与现有条目冲突时向用户报告并请示（修订旧条 or 放弃新条）
-3. **起草条目**：格式与库内一致——`N. 【规|建】内容描述。(源:vflow新增 YYYY-MM-DD)`；级别判定：违反会出 bug/安全问题 → 【规】；风格统一类 → 【建】
-4. **展示草稿等确认**：条目文本 + 归属文件 + 级别，用户确认后才写入
-5. **写入并更新索引**：追加到目标文件（编号顺延）；若条目数变化大则同步 index.md 的条目数
+### 1. Determine Target File [required·once]
+- Language-independent principle → `common/` corresponding file
+- Language-specific (C++, Python, etc.) → `lang/<language>.md` under the relevant topic section
+- Feature-specific (Qt / embedded / bindings) → `modules/` corresponding file
 
-## Output 模板
+### 2. Deduplicate [required·once]
+- Read the target file; confirm no duplicate or conflicting entries
+- If conflict with existing entry → report to user and ask: revise existing entry OR discard new entry
 
-「📘 规范回写草稿（待确认）：
-归属：{文件}
-条目：【{规|建}】{内容} (源:vflow新增 {日期})
-理由：{为什么值得沉淀}」
+### 3. Draft Entry [required·once]
+Format consistent with existing library:
+```
+N. [RULE|SUGGEST] Description. (source: vflow YYYY-MM-DD, category: <Category>)
+```
 
-确认后：「✅ 已写入 {文件} 第 {N} 条，索引已更新」
+Level determination:
+- Violation causes bugs / security issues → `[RULE]`
+- Style consistency / readability → `[SUGGEST]`
+
+### 4. Present Draft for Confirmation [required·once]
+Show to user and wait for explicit confirmation before writing:
+
+"📘 Spec writeback draft (pending confirmation):
+Target: {file}
+Entry: [{RULE|SUGGEST}] {content} (source: vflow {date}, category: {category})
+Reason: {why this is worth capturing}"
+
+### 5. Write and Update Index [required·once]
+- Append to target file (sequential numbering)
+- If entry count changed significantly, update index.md item count
+
+Confirmation output: "✅ Written to {file} as entry #{N}, index updated"
 
 ## Guardrails
 
-- 必须经用户确认才写入——规范是部门资产，不由 AI 单方面扩充
-- 沉淀的是抽象约定（适用于未来同类场景），不是具体代码模板
-- 一次只回写一条；多条逐一确认
-- 临时性、项目特异性太强的内容不进规范库（建议放任务档案的 worklog 即可）
+- MUST have user confirmation before writing — specs are team assets, not AI-unilateral additions
+- Capture abstract conventions (applicable to future similar scenarios), not specific code templates
+- One entry at a time; multiple entries confirmed one by one
+- Content too temporary or project-specific does not belong in the spec library (suggest putting it in the task's worklog instead)
