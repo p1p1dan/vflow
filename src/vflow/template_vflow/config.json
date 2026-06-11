@@ -1,0 +1,17 @@
+{
+  "project": "<项目名称，安装时填写>",
+  "language": "cpp",
+  "features": {
+    "qt": false,
+    "embedded": false,
+    "binding": null
+  },
+  "build": {
+    "command": "",
+    "test_command": ""
+  },
+  "core_paths": [],
+  "journal": {
+    "notebook_path": null
+  }
+}
