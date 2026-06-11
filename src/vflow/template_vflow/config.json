@@ -13,5 +13,6 @@
   "core_paths": [],
   "journal": {
     "notebook_path": null
-  }
+  },
+  "test_required": true
 }

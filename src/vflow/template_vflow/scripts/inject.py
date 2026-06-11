@@ -77,9 +77,10 @@ def do_session():
              "本项目启用 vflow 工作流（流程定义: .vflow/workflow.md）。"]
     feats = cfg.get("features") or {}
     on = [k for k, v in feats.items() if v]
-    lines.append("项目: %s | 语言: %s | 特性: %s" % (
+    lines.append("项目: %s | 语言: %s | 特性: %s | 测试硬规则: %s" % (
         cfg.get("project", "?"), cfg.get("language", "?"),
-        ",".join(map(str, on)) if on else "无"))
+        ",".join(map(str, on)) if on else "无",
+        "启用" if cfg.get("test_required", True) else "关闭"))
     status, task = current_status()
     if task:
         lines.append("活动任务: %s (status=%s phase=%s)" % (

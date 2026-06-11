@@ -41,7 +41,7 @@
 
 必须：
 1. 需求澄清：一次只问一个问题，问清为止；结论写入任务目录 requirement.md（按 .vflow/templates/requirement.md 模板）
-2. 方案设计：草稿先在对话中展示；方案必须包含「测试方案」节（新增哪些用例、放哪个目录）
+2. 方案设计：草稿先在对话中展示；方案必须包含「测试方案」节（新增哪些用例、放哪个目录；config.test_required=false 时此节可写明"本项目已关闭测试硬规则"）
 3. 风险判定并写入 task.json：`python .vflow/scripts/task.py set risk {low|high}`
 4. 审批门 1（按风险自适应）：
    - 低风险 → 方案展示后说明"低风险，将直接继续"，落盘 plan.md 并执行 `task.py start` 进入实现
@@ -59,9 +59,10 @@
 必须：
 1. 写码前按任务涉及主题读取 .vflow/spec/ 对应规范正文（按 config.json features 过滤模块）
 2. 按 plan.md 的「任务清单」逐项实现：完成一项立即勾选 `[x]` 并向 worklog.md 追加一行（改了哪些文件、为什么）；跨会话续做时从第一个未勾选项继续
-3. 测试硬规则（领导要求，不可跳过）：
+3. 测试硬规则（默认启用；config.json 的 test_required=false 时本条豁免，仅口头建议补测试）：
    - 项目无测试目录 → 先按 .claude/skills/vflow-test/SKILL.md 创建测试骨架
    - 新增类/公共接口 → 必须同步编写测试用例（正常路径+边界）
+   - 用户说"关闭测试要求"→ 将 config.json 的 test_required 置 false 并确认，此后不再强制
 4. 质量自检：实现完成后按 .claude/skills/vflow-review/SKILL.md 自检，结果写入 verify.md（按模板）；verify.md 必须粘贴构建/测试的真实命令输出，禁止口头宣布通过
    - **高风险任务必须用独立评审模式**（派发全新上下文子代理评审，见 vflow-review 第 6 步）
 5. 审批门 2（仅高风险）：🛑 自检报告展示后等用户确认才能归档
@@ -69,7 +70,7 @@
 7. 归档：`python .vflow/scripts/task.py done --summary "<一句话产出>"`
 
 禁止：
-- 跳过测试硬规则（仅纯注释/文档改动豁免）
+- 跳过测试硬规则（豁免仅限：纯注释/文档改动，或 config.test_required=false）
 - verify.md 无真实命令输出就宣布完成
 - 任务清单有未勾选项时归档（除非用户确认裁剪并在 plan.md 注明）
 - 实现偏离已确认方案却不告知用户

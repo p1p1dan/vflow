@@ -29,6 +29,7 @@ $ARGUMENTS
 | embedded 特性 | 零长数组、volatile 寄存器、__attribute__、fpga/driver 等目录名 |
 | binding 特性 | pybind11/SWIG/P-Invoke/extern "C" 导出 |
 | 测试现状 | tests/ 目录是否存在、用什么框架 |
+| test_required | 默认 true（新增代码必须有测试）；探测结果中向用户确认是否保持 |
 | core_paths | 候选 = 被引用最多的算法/核心目录（如 src/algorithm/）；从命名和 include 关系推断 |
 
 ### 阶段 C：确认与写入 [HARD STOP]
@@ -39,7 +40,7 @@ $ARGUMENTS
 🔍 vflow 项目探测结果
   项目: {名称}  主语言: {…}  构建: {系统 + 命令草案}
   特性: qt={y/n} embedded={y/n} binding={…}
-  测试: {有/无测试目录，框架}
+  测试: {有/无测试目录，框架} | 测试硬规则: {启用(默认)/关闭}
   core_paths 候选: [...]（这些路径的改动将触发高风险双审批）
 确认无误回复 ok，或直接指出需要修改的项。
 ```
