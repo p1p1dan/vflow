@@ -19,7 +19,7 @@ Compare current changes against .vflow/spec/ conventions line by line, producing
 List all files changed in this task (prefer `git diff --name-only`, fall back to worklog.md).
 
 ### 2. Load Specs [required·once]
-Read spec/index.md → read relevant spec files based on changed topics; exclude disabled modules (e.g. qt:false → skip Qt entries).
+Prefer the spec manifest in the task's plan.md (关联规范 — files + reasons declared at design time); supplement or fall back to spec/index.md topic selection. Exclude disabled modules (e.g. qt:false → skip Qt entries).
 
 ### 3. Three-Dimensional Check [required·once]
 

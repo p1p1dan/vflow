@@ -29,6 +29,7 @@ Every entry must be classified into one of these categories (Trellis-style):
 - Language-independent principle → `common/` corresponding file
 - Language-specific (C++, Python, etc.) → `lang/<language>.md` under the relevant topic section
 - Feature-specific (Qt / embedded / bindings) → `modules/` corresponding file
+- Project domain knowledge (coordinate systems, data formats, algorithm conventions, physical constraints) → `domain/<topic>.md` — create a new topic file if needed and register it in index.md. This is the primary writeback destination in practice.
 
 ### 2. Deduplicate [required·once]
 - Read the target file; confirm no duplicate or conflicting entries
@@ -39,6 +40,8 @@ Format consistent with existing library:
 ```
 N. [RULE|SUGGEST] Description. (source: vflow YYYY-MM-DD, category: <Category>)
 ```
+
+Exception: `domain/` files may be structured documents (definitions, diagrams, naming tables) instead of numbered entries when the knowledge is systemic — e.g. a full coordinate-system convention. Follow the existing structure of the target file.
 
 Level determination:
 - Violation causes bugs / security issues → `[RULE]`
@@ -61,6 +64,5 @@ Confirmation output: "✅ Written to {file} as entry #{N}, index updated"
 ## Guardrails
 
 - MUST have user confirmation before writing — specs are team assets, not AI-unilateral additions
-- Capture abstract conventions (applicable to future similar scenarios), not specific code templates
+- Capture knowledge reusable by future tasks. Project domain knowledge (coordinate systems, formats, algorithm conventions) DOES belong — in `domain/`. Only ephemeral single-task details do not (put those in the task's worklog instead)
 - One entry at a time; multiple entries confirmed one by one
-- Content too temporary or project-specific does not belong in the spec library (suggest putting it in the task's worklog instead)

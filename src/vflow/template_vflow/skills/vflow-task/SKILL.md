@@ -26,7 +26,7 @@ All decisions are recorded. All completions have evidence.
 - When done: `python .vflow/scripts/task.py set phase plan`
 
 ### 3. Design (phase=plan) [required·once]
-- Show the full draft in conversation (change list, key decisions, **test plan**)
+- Show the full draft in conversation (change list, key decisions in ADR-lite form — Context/Decision/Consequences, **test plan**, and the spec manifest: which spec/ files implementation and review must read, with reasons)
 - Risk determination: touches core_paths / >3 files / irreversible operation = high, else low
 - Run: `python .vflow/scripts/task.py set risk {low|high}`
 - Low risk: state "Low risk, proceeding directly" → write plan.md → step 4
@@ -39,10 +39,11 @@ NOTE: `task.py start` validates that requirement.md and plan.md are filled with 
 If validation fails: complete the planning documents first.
 If the user explicitly wants to skip planning: use `task.py start --skip` (records planning_skipped in task.json).
 
-- Before coding, read relevant spec/ files for this task's topics (filter by config features)
-- Implement items from plan.md task checklist one by one: check `[x]` after each item, append a line to worklog.md
-- When resuming across sessions, continue from the first unchecked item
-- If the user changes scope during implementation, update plan.md checklist BEFORE coding the change
+- Right after `task.py start`, mirror the plan.md task checklist into Claude's task list (TaskCreate, one task per checklist item) so progress is visible in the task panel
+- Before coding, read the spec files listed in plan.md's spec manifest (关联规范); if the manifest is missing, select spec/ files by topic filtered by config features
+- Implement items from plan.md task checklist one by one: check `[x]` after each item, append a line to worklog.md, and mark the matching Claude task completed (TaskUpdate). plan.md is the source of truth; the task list is the live progress view
+- When resuming across sessions, continue from the first unchecked item and rebuild the Claude task list from unchecked items
+- If the user changes scope during implementation, update plan.md checklist BEFORE coding the change (and sync the Claude task list to match)
 - Test hard rule (exempt if config.test_required=false): no test dir → create with vflow-test; new class/public interface → write test cases
 
 ### 5. Quality Check (phase=verify) [required·once]

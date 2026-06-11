@@ -69,7 +69,7 @@ Current task is in the planning phase (requirement clarification → design).
 2. Write conclusions to requirement.md in the task directory (per .vflow/templates/requirement.md)
 
 ### Design [required·once]
-3. Draft the design in conversation first (must include a **test plan** section; if config.test_required=false, state "test hard rule is disabled for this project")
+3. Draft the design in conversation first (must include: key decisions in ADR-lite form — Context/Decision/Consequences; a **test plan** section; a spec manifest listing which spec/ files implementation and review must read, with reasons. If config.test_required=false, state "test hard rule is disabled for this project")
 4. Set risk: `python .vflow/scripts/task.py set risk {low|high}`
 
 ### Approval Gate 1 [required·once]
@@ -90,12 +90,13 @@ If the user explicitly wants to skip planning, use `task.py start --skip`.
 Current task is in the implementation phase (implement → quality check → archive).
 
 ### Implementation [required·repeatable]
-1. Before coding, read the relevant .vflow/spec/ files for topics this task touches (filter modules by config.json features)
+1. Before coding, read the spec files listed in plan.md's spec manifest (关联规范); if the manifest is missing, select .vflow/spec/ files by topic (filter modules by config.json features)
 2. Implement items from plan.md task checklist one by one: check off `[x]` after completing each item and append a line to worklog.md (which files changed, why); when resuming across sessions, continue from the first unchecked item
+   - Mirror the plan.md checklist into Claude's task list (TaskCreate, one task per item) right after `task.py start`; mark the matching task completed (TaskUpdate) whenever you check `[x]`. plan.md is the source of truth; the task list is the live progress view. On cross-session resume, rebuild the list from unchecked items
 
 ### Scope Change Handling [required·continuous]
 If the user changes scope or adds/removes requirements during implementation:
-- Update plan.md checklist BEFORE implementing the change
+- Update plan.md checklist BEFORE implementing the change (and sync the Claude task list to match)
 - Note the scope change in worklog.md
 
 ### Test Hard Rule [required·continuous]
