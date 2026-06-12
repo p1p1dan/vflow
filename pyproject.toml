@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vflow"
-version = "0.4.0"
+version = "0.5.0"
 description = "轻量级 AI 研发工作流：任务分级 + 档案留痕 + 规范驱动 + 测试硬规则（Claude Code）"
 requires-python = ">=3.8"
 license = { text = "Proprietary" }

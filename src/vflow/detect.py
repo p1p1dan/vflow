@@ -49,7 +49,8 @@ def project_has_hooks(cwd):
 
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "prompt"
-    cwd = os.getcwd()
+    # 会话 shell 可能 cd 进子目录，cwd 不可靠；优先用 Claude Code 提供的项目根
+    cwd = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
     inj = os.path.join(cwd, ".vflow", "scripts", "inject.py")
     if os.path.exists(inj):
         # 项目自带 hooks 时静默，避免双重注入；项目无 hooks（只提交了 .vflow）时代为注入

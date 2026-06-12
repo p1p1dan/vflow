@@ -46,7 +46,7 @@ MANAGED_VFLOW = [
     "scripts/task.py",
     "scripts/inject.py",
     "templates/requirement.md",
-    "templates/plan.md",
+    "templates/design.md",
     "templates/verify.md",
     "templates/quick-entry.md",
     "skills/vflow-task/SKILL.md",
@@ -67,9 +67,22 @@ COPY_IF_ABSENT_VFLOW = [
 PROJECT_COMMANDS = ["go.md", "task.md", "quick.md", "commit.md", "init.md", "context.md"]
 PROJECT_SKILLS = ["vflow-task", "vflow-quick", "vflow-review", "vflow-test", "vflow-spec",
                   "vflow-brainstorm", "vflow-debug", "vflow-meta", "vflow-think"]
+# 注入类 hook 兜底哲学（用户定调）：失败永不拦截输入，降级为一条注入提示，
+# 指挥 AI 用工具自查并向用户报告。控制流类 hook 不适用此模式。
+PROJECT_DEGRADED = ("<vflow-degraded>vflow inject hook failed. AI: run "
+                    "`python .vflow/scripts/inject.py %s` manually to diagnose "
+                    "(python missing? cwd? encoding?), report the cause to the user, "
+                    "then continue this turn.</vflow-degraded>")
+
+
+def project_hook_cmd(mode):
+    return ('cd "$CLAUDE_PROJECT_DIR" && python .vflow/scripts/inject.py %s '
+            "|| echo '%s'" % (mode, PROJECT_DEGRADED % mode))
+
+
 PROJECT_HOOKS = {
-    "SessionStart": "python .vflow/scripts/inject.py session",
-    "UserPromptSubmit": "python .vflow/scripts/inject.py prompt",
+    "SessionStart": project_hook_cmd("session"),
+    "UserPromptSubmit": project_hook_cmd("prompt"),
 }
 # 全局资产（仅发现与启用层：detect 钩子 + /vflow:init 引导命令）
 GLOBAL_COMMANDS = ["init.md"]
@@ -92,8 +105,13 @@ def write_json(path, data):
 
 # ---------------- 全局资产 ----------------
 
+GLOBAL_DEGRADED = ("<vflow-degraded>vflow detect hook failed. AI: check "
+                   "~/.claude/vflow/detect.py and the registered python path, "
+                   "report the cause to the user, then continue this turn.</vflow-degraded>")
+
+
 def hook_cmd(mode):
-    return '"%s" "%s" %s' % (sys.executable, DETECT_DST, mode)
+    return '"%s" "%s" %s || echo \'%s\'' % (sys.executable, DETECT_DST, mode, GLOBAL_DEGRADED)
 
 
 def merge_global_hooks():
@@ -209,6 +227,17 @@ def install_project_claude(dst_root):
     changed = False
     for event, cmd in PROJECT_HOOKS.items():
         entries = hooks.setdefault(event, [])
+        # 迁移旧版相对路径注册（如 "python .vflow/scripts/inject.py session"）：
+        # 会话 cwd 变化时旧命令找不到文件且非零退出，会阻塞会话
+        for e in entries:
+            hs = e.get("hooks") or []
+            kept = [h for h in hs
+                    if ".vflow/scripts/inject.py" not in str(h.get("command", ""))
+                    or h.get("command") == cmd]
+            if len(kept) != len(hs):
+                e["hooks"] = kept
+                changed = True
+        entries[:] = [e for e in entries if e.get("hooks")]
         exists = any(h.get("command") == cmd
                      for e in entries for h in (e.get("hooks") or []))
         if not exists:
@@ -311,6 +340,10 @@ def do_install(dst, update=False, spec=False, yes=False, reconfigure=False):
         copy_one(SRC_VFLOW, rel, os.path.join(dst, ".vflow"), overwrite=True)
     for rel in COPY_IF_ABSENT_VFLOW:
         copy_one(SRC_VFLOW, rel, os.path.join(dst, ".vflow"), overwrite=False)
+    stale_tpl = os.path.join(dst, ".vflow", "templates", "plan.md")
+    if os.path.exists(stale_tpl):
+        os.remove(stale_tpl)
+        print("  [cleanup] .vflow/templates/plan.md (replaced by design.md)")
     install_spec(dst, force=spec)
     install_project_claude(dst)
     append_gitignore(dst)

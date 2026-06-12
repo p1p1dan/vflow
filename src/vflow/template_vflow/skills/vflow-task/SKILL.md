@@ -1,18 +1,25 @@
 ---
 name: vflow-task
-description: "vflow standard task (T2) five-stage workflow: requirement clarification → design → implementation → quality check → archive. Use when task is classified as T2, user invokes /vflow:task, or vflow-state directs standard task flow."
+description: "vflow standard task (T2) 6-state pipeline: requirement analysis → design → implementation → machine verification → review → archive. Use when task is classified as T2, user invokes /vflow:task, or vflow-state directs standard task flow."
 ---
 
-# vflow Standard Task Workflow
+# vflow Standard Task Workflow (v2 Pipeline)
 
-Execute a standard task through five stages, producing a complete task archive.
-All decisions are recorded. All completions have evidence.
+Execute a standard task through the 6-state pipeline, producing a complete
+task archive with an R-ID trace chain closed end-to-end.
+All decisions are recorded. All completions are machine-verified.
+
+```
+created -> analyzed -> designed -> implementing -> verified -> archived
+```
+
+State moves ONLY via `task.py advance` (mechanical checks) and `task.py done`.
 
 ## Input Contract
 
 - User's task description (classified as T2)
 - Current <vflow-state> injection with state and task info
-- `.vflow/config.json` (features filter specs, core_paths determine risk, build commands)
+- `.vflow/config.json` (features filter specs, core_paths determine risk, test_command)
 
 ## Steps
 
@@ -20,67 +27,55 @@ All decisions are recorded. All completions have evidence.
 `python .vflow/scripts/task.py create <slug> --title "<title>"`
 (slug: lowercase English with dashes, e.g. roundness-algo)
 
-### 2. Requirement Clarification (phase=requirement) [required·once]
+### 2. Requirement Analysis (created → analyzed) [required·once]
 - Execute vflow-brainstorm flow to discover requirements (auto-context → question gating → diverge/converge)
-- For simple/clear requirements, brainstorm converges in one round; for complex/ambiguous ones, the full 4-step flow runs
-- Write conclusions to `requirement.md` in the task directory (template is pre-populated, fill in the blanks)
-- When done: `python .vflow/scripts/task.py set phase plan`
+- Fill requirement.md including **R-ID acceptance entries** (lines `- R<n>: ...`, typically 3-8, covering edge conditions). These are the mechanical anchors for the whole trace chain — make each one independently verifiable.
+- **Gate 1**: show the R-IDs, confirm requirement understanding with the user (AskUserQuestion preferred)
+- Run `python .vflow/scripts/task.py advance` (rejects if no R-ID is defined)
 
-### 3. Design (phase=plan) [required·once]
-- Show the full draft in conversation (change list, key decisions in ADR-lite form — Context/Decision/Consequences, **test plan**, and the spec manifest: which spec/ files implementation and review must read, with reasons)
-- Risk determination: touches core_paths / >3 files / irreversible operation = high, else low
-- Run: `python .vflow/scripts/task.py set risk {low|high}`
-- Low risk: state "Low risk, proceeding directly" → write plan.md → step 4
-- High risk: 🛑 STOP. Output "High-risk task. Please confirm the plan (reply ok/confirm/可以/行 to proceed)". Wait for user confirmation → write plan.md (include approval record) → step 4
+### 3. Design (analyzed → designed) [required·once]
+- Show the full draft in conversation (architecture impact, change list, ADR-lite decisions, **test plan**, spec manifest with reasons)
+- Fill design.md. Checklist items MUST carry trailing R-ID tags `(R1)` / `(R1,R3)`; every requirement R-ID must be covered or advance is rejected
+- If narrowing machine verification: declare in test plan + `task.py set test_scope "<command>"`
+- Risk: `python .vflow/scripts/task.py set risk {low|high}` (high = core_paths / >3 files / irreversible)
+- **Gate 2 (high risk only)**: 🛑 STOP. Wait for user confirmation (ok/confirm/可以/行) before advancing
+- Run `python .vflow/scripts/task.py advance`
 
-### 4. Implementation [required·repeatable]
-Run: `python .vflow/scripts/task.py start`
+### 4. Implementation (designed → implementing) [required·repeatable]
+Run `python .vflow/scripts/task.py advance` (creates worklog.md), then:
+- Mirror the design.md checklist into Claude's task list (TaskCreate, one task per item); design.md is the source of truth
+- Before coding, read the spec files listed in design.md's spec manifest (关联规范)
+- Implement items one by one: check `[x]`, append a worklog.md row (`| time | file | change |`) — **log every changed file; the archive-time mtime cross-check depends on it**, mark the Claude task completed
+- Scope change → update requirement.md R-IDs and design.md checklist BEFORE implementing
+- Test hard rule (exempt if config.test_required=false): no test dir → create scaffold per vflow-test (REQUIRED — machine verification needs a runnable test_command); new class/public interface → test cases (happy path + edge)
 
-NOTE: `task.py start` validates that requirement.md and plan.md are filled with real content.
-If validation fails: complete the planning documents first.
-If the user explicitly wants to skip planning: use `task.py start --skip` (records planning_skipped in task.json).
+### 5. Machine Verification (implementing → verified) [required·once]
+- Fill verify.md §1: one result line per R-ID (`- R<n>: <interpretation>`), §2 integration (or 不适用 + reason)
+- Run `python .vflow/scripts/task.py advance`
+  - task.py EXECUTES the test command itself: exit≠0 → rejected with failure output; exit 0 → machine record appended to verify.md by the script
+  - Do NOT paste raw test output yourself; never edit the machine record
+- On failure: fix code, log files in worklog.md, advance again
 
-- Right after `task.py start`, mirror the plan.md task checklist into Claude's task list (TaskCreate, one task per checklist item) so progress is visible in the task panel
-- Before coding, read the spec files listed in plan.md's spec manifest (关联规范); if the manifest is missing, select spec/ files by topic filtered by config features
-- Implement items from plan.md task checklist one by one: check `[x]` after each item, append a line to worklog.md, and mark the matching Claude task completed (TaskUpdate). plan.md is the source of truth; the task list is the live progress view
-- When resuming across sessions, continue from the first unchecked item and rebuild the Claude task list from unchecked items
-- If the user changes scope during implementation, update plan.md checklist BEFORE coding the change (and sync the Claude task list to match)
-- Test hard rule (exempt if config.test_required=false): no test dir → create with vflow-test; new class/public interface → write test cases
-
-### 5. Quality Check (phase=verify) [required·once]
-Run: `python .vflow/scripts/task.py set phase verify`
-
-- Execute vflow-review flow (**high-risk tasks must use independent review mode**: dispatch a fresh-context sub-agent)
-- Write results to verify.md
-- Run config.build commands, **paste real output** into verify.md
-- High risk: 🛑 STOP. Show review report, wait for user confirmation
-
-### 5.5 Spec Accumulation [required·once]
-Before archiving, review worklog.md for new insights:
-- New conventions, patterns, forbidden practices, or gotchas discovered during this task
-- If any found → trigger vflow-spec flow (draft entry → user confirmation → write to spec/)
-- If nothing new → skip silently
-
-### 6. Archive [required·once]
-Verify all plan.md checklist items are checked (or user-confirmed scope reduction is noted).
-
-Run: `python .vflow/scripts/task.py done --summary "<one-line outcome including new test count>"`
-
-NOTE: `task.py done` validates verify.md is filled and plan.md has no unchecked items.
-Use `--force` only if the user explicitly confirms bypassing checks.
+### 6. Review & Archive (verified → archived) [required·once]
+- Quality check per vflow-review (**high-risk tasks must use independent review mode**: fresh-context sub-agent), fill review section of verify.md
+- Spec accumulation: new conventions/patterns/gotchas in worklog.md → vflow-spec flow (draft → user confirmation → write to spec/); nothing new → skip silently
+- **Gate 3**: 🛑 show the verify report (R-ID closure + machine record), wait for user confirmation
+- Run `python .vflow/scripts/task.py done --summary "<one-line outcome including new test count>"`
+  - Validates R-ID closure in verify.md §1 and that no source file changed after machine verification (mtime cross-check)
+  - If code changed after verification: `task.py back` → re-advance
 
 ## Output Templates
 
-Stage transitions — state progress in one line:
-"✅ Phase complete: {Requirement|Design|Implementation|Review}. Next: {…}"
+State transitions — one line:
+"✅ Station complete: {requirement|design|implementation|verification|review}. Next: {…}"
 
 After archival:
 "📦 Task archived: tasks/archive/YYYY-MM/<id>/. Output: {summary}"
 
 ## Guardrails
 
-- High-risk tasks: no implementation code before user confirmation
-- Cannot run `task.py done` without real command output in verify.md
-- Plan deviation during implementation → inform user and update plan.md first
-- Skip Detection Rule (from workflow.md): only explicit skip phrases bypass planning. Implementation strategy phrases ("use goal mode", "fix file by file") are NOT skip signals.
+- High-risk tasks: no implementation code before Gate 2 confirmation
+- Never bypass advance checks with --skip-check unless the user explicitly asks (recorded in task.json)
+- Never use done --force without explicit user confirmation
+- Skip Detection Rule (workflow.md): only explicit skip phrases bypass ceremony; spec/ conventions and test hard rule still apply
 - Do not copy injected <vflow-state>/<vflow-context> content into deliverable files

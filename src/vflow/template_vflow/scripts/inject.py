@@ -21,6 +21,11 @@ WORKFLOW = os.path.join(ROOT, "workflow.md")
 SPEC_INDEX = os.path.join(ROOT, "spec", "index.md")
 CONFIG = os.path.join(ROOT, "config.json")
 
+PIPELINE = ["created", "analyzed", "designed", "implementing", "verified", "archived"]
+
+# Legacy status/phase tasks map onto v2 states so old archives keep working.
+LEGACY_MAP = {"planning": "analyzed", "in_progress": "implementing"}
+
 SKIP_DETECTION_SUMMARY = """Skip Detection Rule: ONLY these exact user phrases constitute a skip signal:
   "skip" | "直接做" | "跳过" | "不用规划" | "不走流程"
 Implementation strategy phrases (e.g. "use goal mode", "fix file by file") are NOT skip signals."""
@@ -42,38 +47,50 @@ def read_json(path, default=None):
         return default
 
 
-def current_status():
+def task_state(t):
+    if "state" in t:
+        return t["state"]
+    return LEGACY_MAP.get(t.get("status", ""), "no_task")
+
+
+def current_state():
+    """Return (state, task, task_dir). state falls back to no_task."""
     name = read(POINTER).strip()
     if not name:
         return "no_task", None, None
     task_dir = os.path.join(ROOT, "tasks", name)
-    tj = os.path.join(task_dir, "task.json")
     try:
-        t = json.loads(read(tj))
-        status = t.get("status", "no_task")
-        if status == "completed":
+        t = json.loads(read(os.path.join(task_dir, "task.json")))
+        state = task_state(t)
+        if state in ("archived", "no_task") or t.get("status") == "completed":
             return "no_task", None, None
-        return status, t, task_dir
+        return state, t, task_dir
     except Exception:
         return "no_task", None, None
 
 
-def state_block(status):
+def state_block(state):
     text = read(WORKFLOW)
-    m = re.search(r"\[workflow-state:%s\](.*?)\[/workflow-state:%s\]" % (status, status),
+    m = re.search(r"\[workflow-state:%s\](.*?)\[/workflow-state:%s\]" % (state, state),
                   text, re.S)
     return m.group(1).strip() if m else ""
 
 
+def design_path(task_dir):
+    p = os.path.join(task_dir, "design.md")
+    if os.path.exists(p):
+        return p
+    return os.path.join(task_dir, "plan.md")
+
+
 def unchecked_items(task_dir):
-    """Read plan.md and return unchecked checklist items."""
     if not task_dir:
         return []
-    plan = os.path.join(task_dir, "plan.md")
-    if not os.path.exists(plan):
+    dp = design_path(task_dir)
+    if not os.path.exists(dp):
         return []
     items = []
-    with open(plan, encoding="utf-8") as f:
+    with open(dp, encoding="utf-8") as f:
         for line in f:
             if line.strip().startswith("- [ ]"):
                 items.append(line.strip()[6:].strip())
@@ -81,13 +98,13 @@ def unchecked_items(task_dir):
 
 
 def spec_manifest(task_dir):
-    """Parse plan.md '关联规范' table and return list of (spec_file, reason)."""
+    """Parse design.md '关联规范' table and return list of (spec_file, reason)."""
     if not task_dir:
         return []
-    plan = os.path.join(task_dir, "plan.md")
-    if not os.path.exists(plan):
+    dp = design_path(task_dir)
+    if not os.path.exists(dp):
         return []
-    text = read(plan)
+    text = read(dp)
     in_section = False
     in_table = False
     entries = []
@@ -104,7 +121,9 @@ def spec_manifest(task_dir):
         if in_section and in_table and stripped.startswith("|"):
             cols = [c.strip() for c in stripped.split("|")]
             cols = [c for c in cols if c]
-            if len(cols) >= 1 and cols[0] and not cols[0].startswith("（") and not cols[0].startswith("spec"):
+            # skip placeholder rows and a stray header row, keep real spec/ paths
+            if (len(cols) >= 1 and cols[0] and not cols[0].startswith("（")
+                    and cols[0] not in ("spec 文件", "spec文件")):
                 reason = cols[1] if len(cols) >= 2 else ""
                 entries.append((cols[0], reason))
         elif in_section and in_table and not stripped.startswith("|"):
@@ -113,10 +132,11 @@ def spec_manifest(task_dir):
 
 
 def load_spec_contents(entries):
-    """Read spec file contents for manifest entries. Returns list of (path, reason, content)."""
     results = []
     for spec_file, reason in entries:
         rel = spec_file.strip().lstrip("/")
+        if rel.startswith(".vflow/"):
+            rel = rel[7:]
         if rel.startswith("spec/"):
             rel = rel[5:]
         spec_path = os.path.join(ROOT, "spec", rel)
@@ -130,35 +150,41 @@ def load_spec_contents(entries):
     return results
 
 
+def pipeline_line(state):
+    return " -> ".join(("[%s]" % s) if s == state else s for s in PIPELINE)
+
+
 def do_prompt():
-    status, task, task_dir = current_status()
-    block = state_block(status)
+    state, task, task_dir = current_state()
+    block = state_block(state)
     if not block:
         return
     lines = ["<vflow-state>"]
     if task:
-        lines.append("Active task: %s | %s | tier=%s phase=%s risk=%s" % (
-            task.get("id"), task.get("title"), task.get("tier"),
-            task.get("phase"), task.get("risk")))
+        lines.append("Active task: %s | %s | tier=%s risk=%s" % (
+            task.get("id"), task.get("title"), task.get("tier"), task.get("risk")))
+        lines.append("Pipeline: %s" % pipeline_line(state))
+        if "state" not in task:
+            lines.append("(legacy task: use legacy commands set phase/start/done)")
 
     lines.append(block)
 
-    if status == "in_progress" and task_dir:
+    if state == "implementing" and task_dir:
         items = unchecked_items(task_dir)
         if items:
             lines.append("")
-            lines.append("Remaining checklist (from plan.md):")
+            lines.append("Remaining checklist (from design doc):")
             for item in items:
                 lines.append("  - [ ] %s" % item)
-            lines.append("If the user changes scope, update plan.md checklist BEFORE implementing.")
+            lines.append("If the user changes scope, update the checklist BEFORE implementing.")
 
-    if task_dir and status in ("planning", "in_progress"):
+    if task_dir and state in ("analyzed", "designed", "implementing"):
         entries = spec_manifest(task_dir)
         if entries:
             specs = load_spec_contents(entries)
             if specs:
                 lines.append("")
-                lines.append("--- Auto-loaded specs (from plan.md spec manifest) ---")
+                lines.append("--- Auto-loaded specs (from design doc spec manifest) ---")
                 for spec_file, reason, content in specs:
                     lines.append("")
                     lines.append("[spec:%s] (reason: %s)" % (spec_file, reason))
@@ -191,10 +217,10 @@ def do_session():
     if cfg.get("execution_log"):
         lines.append("Execution logging: enabled")
 
-    status, task, _ = current_status()
+    state, task, _ = current_state()
     if task:
-        lines.append("Active task: %s (status=%s phase=%s)" % (
-            task.get("id"), task.get("status"), task.get("phase")))
+        lines.append("Active task: %s (state=%s)" % (task.get("id"), state))
+        lines.append("Pipeline: %s" % pipeline_line(state))
     else:
         lines.append("No active task.")
 
