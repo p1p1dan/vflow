@@ -290,10 +290,17 @@ def ask(prompt, default=""):
         return default
 
 
-def configure(dst_root, yes, reconfigure):
+def configure(dst_root, yes, reconfigure, defer=False):
     p = os.path.join(dst_root, ".vflow", "config.json")
     cfg = read_json(p, {})
     placeholder = str(cfg.get("project", "")).startswith("<")
+    if defer:
+        if placeholder:
+            cfg["project"] = os.path.basename(os.path.abspath(dst_root))
+        cfg["enabled"] = None
+        write_json(p, cfg)
+        print("  [写入] config.json（延迟启用，进入 claude 后确认）")
+        return
     if yes:
         if placeholder:
             cfg["project"] = os.path.basename(os.path.abspath(dst_root))
@@ -333,7 +340,7 @@ def smoke_test(dst_root):
     return ok
 
 
-def do_install(dst, update=False, spec=False, yes=False, reconfigure=False):
+def do_install(dst, update=False, spec=False, yes=False, defer=False, reconfigure=False):
     mode = "更新" if update else "启用"
     print("[vflow] %s项目 -> %s" % (mode, dst))
     for rel in MANAGED_VFLOW:
@@ -347,7 +354,7 @@ def do_install(dst, update=False, spec=False, yes=False, reconfigure=False):
     install_spec(dst, force=spec)
     install_project_claude(dst)
     append_gitignore(dst)
-    configure(dst, yes, reconfigure)
+    configure(dst, yes, reconfigure, defer=defer)
     clear_declined(dst)
     smoke_test(dst)
     print("[vflow] %s完成。打开 Claude Code 新会话即可使用。" % mode)
@@ -381,7 +388,10 @@ def main():
     sub.add_parser("setup", help="安装/刷新全局资产（hooks/commands/skills）")
     pi = sub.add_parser("init", help="为项目启用 vflow")
     pi.add_argument("target", nargs="?", default=".")
-    pi.add_argument("--yes", action="store_true", help="静默默认配置（不交互）")
+    pi_mode = pi.add_mutually_exclusive_group()
+    pi_mode.add_argument("--yes", action="store_true", help="静默默认配置（不交互）")
+    pi_mode.add_argument("--defer", action="store_true",
+                         help="铺文件但不激活（enabled=null），进入 claude 后再确认")
     pi.add_argument("--reconfigure", action="store_true")
     pu = sub.add_parser("update", help="更新项目的受管文件")
     pu.add_argument("target", nargs="?", default=".")
@@ -404,7 +414,8 @@ def main():
         print("[vflow] 目标目录不存在: %s" % dst)
         return 1
     if args.cmd == "init":
-        return do_install(dst, yes=args.yes, reconfigure=args.reconfigure)
+        return do_install(dst, yes=args.yes, defer=args.defer,
+                          reconfigure=args.reconfigure)
     return do_install(dst, update=True, spec=args.spec)
 
 

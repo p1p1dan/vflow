@@ -30,6 +30,22 @@ SKIP_DETECTION_SUMMARY = """Skip Detection Rule: ONLY these exact user phrases c
   "skip" | "直接做" | "跳过" | "不用规划" | "不走流程"
 Implementation strategy phrases (e.g. "use goal mode", "fix file by file") are NOT skip signals."""
 
+SUGGEST_ENABLE = """<vflow-suggest>
+vflow 工作流已安装但尚未激活。收到用户第一条消息时，先用 AskUserQuestion 工具询问（仅问一次）：
+  问题："是否在当前项目启用 vflow 工作流？"
+  选项：启用（推荐）/ 本项目不启用
+得到答案后再处理用户的消息。
+- 选启用 → 执行 /vflow:init 让 AI 探测项目配置并激活
+- 选不启用 → 用 python 将 .vflow/config.json 中 enabled 设为 false，然后正常处理用户消息
+- 用户关闭选择框未表态 → 直接处理其消息，本会话不再提及
+</vflow-suggest>"""
+
+
+def get_enabled(cfg):
+    if "enabled" in cfg:
+        return cfg["enabled"]
+    return True
+
 
 def read(path):
     try:
@@ -155,6 +171,10 @@ def pipeline_line(state):
 
 
 def do_prompt():
+    cfg = read_json(CONFIG, {})
+    enabled = get_enabled(cfg)
+    if enabled is not True:
+        return
     state, task, task_dir = current_state()
     block = state_block(state)
     if not block:
@@ -191,7 +211,6 @@ def do_prompt():
                     lines.append(content.rstrip())
                     lines.append("[/spec:%s]" % spec_file)
 
-    cfg = read_json(CONFIG, {})
     if cfg.get("execution_log"):
         lines.append("")
         lines.append("Execution logging is ON. Append to execution.log after each significant "
@@ -204,6 +223,12 @@ def do_prompt():
 
 def do_session():
     cfg = read_json(CONFIG, {})
+    enabled = get_enabled(cfg)
+    if enabled is None:
+        print(SUGGEST_ENABLE)
+        return
+    if enabled is False:
+        return
     feats = cfg.get("features") or {}
     on = [k for k, v in feats.items() if v]
     lines = [

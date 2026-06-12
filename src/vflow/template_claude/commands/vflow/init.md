@@ -45,7 +45,7 @@ $ARGUMENTS
 确认无误回复 ok，或直接指出需要修改的项。
 ```
 
-用户确认后写入 `.vflow/config.json`（保留已有的 journal 等配置，只更新探测字段）。
+用户确认后写入 `.vflow/config.json`（保留已有的 journal 等配置，只更新探测字段），同时将 `enabled` 设为 `true`（激活工作流）。
 
 ### 阶段 D：收尾建议
 

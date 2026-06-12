@@ -1,5 +1,6 @@
 {
   "project": "<项目名称，安装时填写>",
+  "enabled": true,
   "language": "cpp",
   "features": {
     "qt": false,
