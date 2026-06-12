@@ -102,9 +102,9 @@ Apply at least one stress-test model:
 
 **Gate**: All 3 validation answers = "yes" + at least one stress-test applied.
 
-## Progress Tracker (Anti-Drift)
+## Progress Tracker (Anti-Drift, Persistent)
 
-Maintain throughout the analysis. After each phase, output:
+Maintain throughout the analysis. After each phase, output to conversation AND write to `fp-progress.md` in the task directory (creates cross-session persistence).
 
 ```
 🧭 FP Progress
@@ -115,6 +115,8 @@ Maintain throughout the analysis. After each phase, output:
 - [ ] Phase 4: Reason Upward
 - [ ] Phase 5: Validate
 ```
+
+**Session resume**: If `fp-progress.md` exists in the task directory, read it first to restore progress and continue from the last incomplete phase. Do NOT restart from Phase 0.
 
 If conversation drifts (user asks a tangent), after addressing it:
 > 📍 Returning to FP analysis: Phase N has M items remaining. Continuing.
@@ -149,3 +151,83 @@ If conversation drifts (user asks a tangent), after addressing it:
 - Phase gates are mandatory — no skipping even if the user says "just give me the answer"
 - The progress tracker must be output after each phase completion
 - This skill is independent of the vflow task workflow — it can run standalone at any time
+
+## vflow Integration
+
+When an active vflow task exists, analysis artifacts are persisted to the task directory.
+
+### File Placement
+
+```
+.vflow/tasks/{task-id}/
+├── task.json              # Existing — fp_analysis metadata added
+├── fp-analysis.md         # ← 6-phase analysis output (Phases 0-5)
+├── fp-progress.md         # ← Phase progress tracker (cross-session persistence)
+├── plan.md                # Existing — FP conclusions feed into design decisions
+└── ...
+```
+
+### Incremental Writing
+
+- After each phase completion, **append** that phase's output to `fp-analysis.md` (don't wait until Phase 5)
+- After each phase completion, **overwrite** `fp-progress.md` with current progress state
+- This ensures no work is lost if the session ends mid-analysis
+
+### Completion Recording
+
+After Phase 5 validation passes, update `task.json` by adding:
+
+```json
+{
+  "fp_analysis": {
+    "completed": true,
+    "axioms_count": 3,
+    "assumptions_challenged": 6,
+    "ground_truths_count": 5,
+    "validation_passed": true
+  }
+}
+```
+
+### Output Format (fp-analysis.md)
+
+```markdown
+## First Principles Analysis: [Topic]
+
+### Axioms
+1. [Axiom 1] — [Why irreducible]
+2. [Axiom 2] — [Why irreducible]
+3. [Axiom 3] — [Why irreducible]
+
+### Problem Essence
+**Core problem:** [One sentence]
+**Success criteria:** [Measurable outcomes]
+
+### Assumptions Challenged
+| Assumption | Challenge | Axiom(s) | Verdict |
+| :--- | :--- | :--- | :--- |
+| ... | ... | A1, A2 | Keep/Discard/Modify |
+
+### Ground Truths
+1. [Specific, falsifiable fact]
+2. [Specific, falsifiable fact]
+3. [Specific, falsifiable fact]
+
+### Reasoning Chain
+GT#1 + GT#3 → [Inference] → [Step] → [Conclusion]
+
+### Conclusion
+**Recommended approach:** [Description]
+**Key insight:** [What FP analysis revealed that convention missed]
+**Trade-offs acknowledged:** [What we accept and why]
+
+### Validation
+- [x] Every conclusion traces to a ground truth
+- [x] Every ground truth is covered
+- [x] No phases skipped
+- [x] Stress-tested with: [model name]
+```
+
+### Standalone Mode
+
+When no active vflow task exists, output analysis to conversation only (no file persistence). User can request file output explicitly.
