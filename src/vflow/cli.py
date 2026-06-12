@@ -2,20 +2,21 @@
 # -*- coding: utf-8 -*-
 """vflow CLI：轻量级 AI 研发工作流。
 
-架构（v0.2.0 全局资产模式）:
-  全局资产（~/.claude/，setup 安装，所有项目共享）:
-    - hooks: detect.py 会话检测（已启用→透传注入；未启用→询问一次；已拒绝→静默）
-    - commands: /vflow:go|task|quick|init|commit|context（6 个）
-    - skills: vflow-task|quick|review|test|spec（5 个）
-  项目资产（<项目>/.vflow/，init 安装，纯数据随项目 git）:
-    - workflow.md / config.json / spec/ / templates/ / tasks/ / scripts/
+架构（混合式：项目为主，全局为辅）:
+  项目资产（<项目>/，init 安装，随项目 git，clone 即得）:
+    - .vflow/: workflow.md / config.json / spec/ / templates/ / tasks/ / scripts/
+    - .vflow/skills/: 9 个技能（task/quick/review/test/spec/brainstorm/debug/meta/think）
+    - .claude/: 6 个 /vflow:* 命令 + 项目 hooks
+  全局资产（~/.claude/，发现与启用层，init 自动安装）:
+    - vflow/detect.py: 会话检测（已启用→透传；未启用→询问一次；已拒绝→静默）
+    - commands/vflow/init.md: 全局启用入口
 
 用法:
-  vflow setup              # 安装/刷新全局资产（每设备一次；CLI 每次运行也会自动校验刷新）
-  vflow init <路径> [--yes] # 项目启用（--yes 静默默认配置）
+  vflow init <路径> [--yes] # 项目启用（首次运行自动完成全局 setup）
   vflow update <路径> [--spec]
   vflow decline <路径>      # 标记"该项目不启用"，会话内不再询问
   vflow status [路径]
+  vflow setup              # 手动刷新全局资产（一般不需要，init/update 自动触发）
 """
 import argparse
 import json
