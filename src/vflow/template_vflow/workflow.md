@@ -65,7 +65,7 @@ Current task is in the planning phase (requirement clarification → design).
      are NOT skip signals — they are guidance for the plan/implementation approach. -->
 
 ### Requirement Clarification [required·once]
-1. Ask one question at a time until requirements are clear
+1. Execute vflow-brainstorm flow: auto-context first, then gated questions (one at a time, AskUserQuestion preferred), diverge sweep for complex tasks, converge to requirement.md
 2. Write conclusions to requirement.md in the task directory (per .vflow/templates/requirement.md)
 
 ### Design [required·once]

@@ -54,6 +54,10 @@ MANAGED_VFLOW = [
     "skills/vflow-review/SKILL.md",
     "skills/vflow-test/SKILL.md",
     "skills/vflow-spec/SKILL.md",
+    "skills/vflow-brainstorm/SKILL.md",
+    "skills/vflow-debug/SKILL.md",
+    "skills/vflow-meta/SKILL.md",
+    "skills/vflow-think/SKILL.md",
 ]
 COPY_IF_ABSENT_VFLOW = [
     "config.json",
@@ -61,7 +65,8 @@ COPY_IF_ABSENT_VFLOW = [
 ]
 # 项目级资产（随项目 git，同事 clone 即得，无需 pip）
 PROJECT_COMMANDS = ["go.md", "task.md", "quick.md", "commit.md", "init.md", "context.md"]
-PROJECT_SKILLS = ["vflow-task", "vflow-quick", "vflow-review", "vflow-test", "vflow-spec"]
+PROJECT_SKILLS = ["vflow-task", "vflow-quick", "vflow-review", "vflow-test", "vflow-spec",
+                  "vflow-brainstorm", "vflow-debug", "vflow-meta", "vflow-think"]
 PROJECT_HOOKS = {
     "SessionStart": "python .vflow/scripts/inject.py session",
     "UserPromptSubmit": "python .vflow/scripts/inject.py prompt",

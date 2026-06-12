@@ -21,7 +21,8 @@ All decisions are recorded. All completions have evidence.
 (slug: lowercase English with dashes, e.g. roundness-algo)
 
 ### 2. Requirement Clarification (phase=requirement) [required·once]
-- Ask one question at a time; follow up based on answers until requirements are clear
+- Execute vflow-brainstorm flow to discover requirements (auto-context → question gating → diverge/converge)
+- For simple/clear requirements, brainstorm converges in one round; for complex/ambiguous ones, the full 4-step flow runs
 - Write conclusions to `requirement.md` in the task directory (template is pre-populated, fill in the blanks)
 - When done: `python .vflow/scripts/task.py set phase plan`
 

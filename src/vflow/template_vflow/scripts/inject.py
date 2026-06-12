@@ -80,6 +80,56 @@ def unchecked_items(task_dir):
     return items
 
 
+def spec_manifest(task_dir):
+    """Parse plan.md '关联规范' table and return list of (spec_file, reason)."""
+    if not task_dir:
+        return []
+    plan = os.path.join(task_dir, "plan.md")
+    if not os.path.exists(plan):
+        return []
+    text = read(plan)
+    in_section = False
+    in_table = False
+    entries = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("## 关联规范"):
+            in_section = True
+            continue
+        if in_section and stripped.startswith("## "):
+            break
+        if in_section and stripped.startswith("| :"):
+            in_table = True
+            continue
+        if in_section and in_table and stripped.startswith("|"):
+            cols = [c.strip() for c in stripped.split("|")]
+            cols = [c for c in cols if c]
+            if len(cols) >= 1 and cols[0] and not cols[0].startswith("（") and not cols[0].startswith("spec"):
+                reason = cols[1] if len(cols) >= 2 else ""
+                entries.append((cols[0], reason))
+        elif in_section and in_table and not stripped.startswith("|"):
+            break
+    return entries
+
+
+def load_spec_contents(entries):
+    """Read spec file contents for manifest entries. Returns list of (path, reason, content)."""
+    results = []
+    for spec_file, reason in entries:
+        rel = spec_file.strip().lstrip("/")
+        if rel.startswith("spec/"):
+            rel = rel[5:]
+        spec_path = os.path.join(ROOT, "spec", rel)
+        if not os.path.exists(spec_path):
+            spec_path = os.path.join(ROOT, rel)
+        if not os.path.exists(spec_path):
+            continue
+        content = read(spec_path)
+        if content.strip():
+            results.append((spec_file, reason, content))
+    return results
+
+
 def do_prompt():
     status, task, task_dir = current_status()
     block = state_block(status)
@@ -101,6 +151,19 @@ def do_prompt():
             for item in items:
                 lines.append("  - [ ] %s" % item)
             lines.append("If the user changes scope, update plan.md checklist BEFORE implementing.")
+
+    if task_dir and status in ("planning", "in_progress"):
+        entries = spec_manifest(task_dir)
+        if entries:
+            specs = load_spec_contents(entries)
+            if specs:
+                lines.append("")
+                lines.append("--- Auto-loaded specs (from plan.md spec manifest) ---")
+                for spec_file, reason, content in specs:
+                    lines.append("")
+                    lines.append("[spec:%s] (reason: %s)" % (spec_file, reason))
+                    lines.append(content.rstrip())
+                    lines.append("[/spec:%s]" % spec_file)
 
     cfg = read_json(CONFIG, {})
     if cfg.get("execution_log"):
