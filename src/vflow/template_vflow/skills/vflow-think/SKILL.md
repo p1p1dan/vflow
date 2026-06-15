@@ -1,9 +1,25 @@
 ---
 name: vflow-think
-description: "First principles thinking: 6-phase systematic analysis with phase gates. Use when the user says 'first principles', '第一性原理', 'challenge assumptions', 'is this the right approach', or needs to evaluate decisions without relying on convention."
+description: "Structured thinking models for development decisions. Mode A: First principles analysis (6-phase). Mode B: SWOT comparison for multi-option decisions. Use when the user says 'first principles', '第一性原理', 'challenge assumptions', 'compare options', 'SWOT', '方案比选', or needs to evaluate decisions systematically."
 ---
 
-# vflow Think — First Principles Analysis
+# vflow Think — Structured Decision Analysis
+
+Two modes for two types of decisions:
+- **Mode A: First Principles** — Challenge assumptions, reason from ground truths (single approach, deep analysis)
+- **Mode B: SWOT Comparison** — Structured comparison of multiple candidate approaches (multi-option, breadth analysis)
+
+## Mode Selection
+
+| Trigger | Mode |
+| :--- | :--- |
+| "first principles", "第一性原理", "challenge assumptions", "is this the right approach" | Mode A |
+| "compare options", "SWOT", "方案比选", "which approach", "A vs B", multiple candidates in ADR | Mode B |
+| Unclear | Ask: "Are you questioning whether the approach is right (Mode A: First Principles), or choosing between known alternatives (Mode B: SWOT)?" |
+
+---
+
+## Mode A: First Principles Analysis
 
 Decompose complex problems into irreducible truths and reason upward — avoiding the trap of reasoning by analogy, convention, or "best practice".
 
@@ -231,3 +247,113 @@ GT#1 + GT#3 → [Inference] → [Step] → [Conclusion]
 ### Standalone Mode
 
 When no active vflow task exists, output analysis to conversation only (no file persistence). User can request file output explicitly.
+
+---
+
+## Mode B: SWOT Comparison
+
+Structured comparison of 2-4 candidate approaches. Use when multiple valid solutions exist and you need to choose.
+
+### When to Use
+
+- Design phase ADR with multiple candidate approaches
+- Technology/library selection decisions
+- Architecture trade-off analysis
+- Any "A vs B vs C" decision in the development process
+
+### When NOT to Use
+
+- Only one viable approach exists (just do it)
+- The decision is trivial (pick the simpler one)
+- You need to challenge whether the problem itself is right (use Mode A instead)
+
+### Steps
+
+#### B1. Define Decision Context [required·once]
+
+State in 2-3 sentences:
+- What decision needs to be made
+- What constraints exist (performance, compatibility, timeline, team skills)
+- What "good enough" looks like (evaluation criteria)
+
+#### B2. List Candidates [required·once]
+
+List 2-4 candidate approaches. For each, one sentence describing the core idea.
+
+#### B3. SWOT Analysis per Candidate [required·once]
+
+For each candidate, fill the 4-quadrant table:
+
+| Quadrant | Question | Focus |
+| :--- | :--- | :--- |
+| **Strengths** | What does this approach do well in our context? | Internal advantages: simplicity, performance, familiarity, proven |
+| **Weaknesses** | What are its inherent limitations? | Internal disadvantages: complexity, risk, learning curve, maintenance burden |
+| **Opportunities** | What future benefits does it enable? | External upside: extensibility, reuse, ecosystem, team growth |
+| **Threats** | What could go wrong or change? | External risks: deprecation, scaling limits, vendor lock-in, requirement changes |
+
+Each quadrant: 2-4 concrete points. No vague "it's good/bad" — every point must be specific and relevant to the decision context.
+
+#### B4. Cross-Comparison Matrix [required·once]
+
+Summarize into a comparison table using the evaluation criteria from B1:
+
+| Criterion | Candidate A | Candidate B | Candidate C |
+| :--- | :--- | :--- | :--- |
+| {criterion 1} | {rating + reason} | {rating + reason} | {rating + reason} |
+| {criterion 2} | ... | ... | ... |
+
+Rating: ✅ strong / ⚠ acceptable / ❌ weak
+
+#### B5. Recommendation [required·once]
+
+- **Recommended**: [Candidate] — [one sentence why]
+- **Key trade-off**: [what you're accepting by choosing this]
+- **Mitigation**: [how to handle the main weakness of the chosen approach]
+- **Rejected alternatives**: [one line each explaining why not]
+
+### Output Format (swot-analysis.md)
+
+When an active vflow task exists, persist to:
+```
+.vflow/tasks/{task-id}/swot-analysis.md
+```
+
+```markdown
+## SWOT Comparison: [Decision Topic]
+
+### Context
+[2-3 sentences]
+
+### Candidates
+1. **[Name A]**: [description]
+2. **[Name B]**: [description]
+
+### SWOT: [Name A]
+| S: Strengths | W: Weaknesses |
+| :--- | :--- |
+| ... | ... |
+| **O: Opportunities** | **T: Threats** |
+| ... | ... |
+
+### SWOT: [Name B]
+[same format]
+
+### Comparison
+| Criterion | A | B |
+| :--- | :--- | :--- |
+
+### Recommendation
+**Choose [X]** because [reason]. Accept [trade-off], mitigate by [action].
+```
+
+### Standalone Mode
+
+When no active vflow task exists, output to conversation only. User can request file output explicitly.
+
+### Guardrails
+
+- Each SWOT quadrant must have ≥2 concrete points (no empty quadrants)
+- Do not pre-decide the winner before completing the full analysis
+- If all candidates score similarly, explicitly state "no clear winner" and recommend the simplest option
+- SWOT analysis should take 5-10 minutes, not 30 — keep it focused on the decision at hand
+

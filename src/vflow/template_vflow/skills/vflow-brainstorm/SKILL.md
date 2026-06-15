@@ -50,6 +50,19 @@ After core requirements are understood, proactively expand thinking before conve
 2. **Related scenarios** — What adjacent features should remain consistent? Parity expectations?
 3. **Failure & edge cases** — Conflicts, data loss risks, idempotency, input validation, rollback
 
+**5W1H blind-spot scan** — After the 3 categories above, run a quick 6-dimension check to catch gaps the categories missed:
+
+| Dimension | Check Question |
+| :--- | :--- |
+| **What** | Is the deliverable clearly defined? Any ambiguity in what "done" means? |
+| **Why** | Is the motivation documented? Would a different person reach the same conclusion about why this is needed? |
+| **When** | Are there timing constraints, dependencies, or ordering requirements not yet captured? |
+| **Where** | Which modules/layers/systems are affected? Any cross-boundary impacts missed? |
+| **Who** | Who are the consumers of this change? Any stakeholders or downstream users not considered? |
+| **How** | Is the implementation approach clear? Any unresolved technical choices? |
+
+If any dimension reveals a gap, add it to the diverge list. If all 6 are covered, state "5W1H: no additional gaps found."
+
 Ask the user (via AskUserQuestion): "Which of these should be in MVP scope?"
 
 Update requirement.md:

@@ -15,6 +15,21 @@ created -> analyzed -> designed -> implementing -> verified -> archived
 
 State moves ONLY via `task.py advance` (mechanical checks) and `task.py done`.
 
+## Task Directory Path
+
+**IMPORTANT**: Task files are stored at `.vflow/tasks/<slug>/` (e.g. `.vflow/tasks/06-15-my-task/`).
+There is NO `active/` subdirectory. Never use `.vflow/tasks/active/`. The correct path is always:
+
+```
+.vflow/tasks/<slug>/requirement.md
+.vflow/tasks/<slug>/design.md
+.vflow/tasks/<slug>/worklog.md
+.vflow/tasks/<slug>/verify.md
+.vflow/tasks/<slug>/task.json
+```
+
+The current task name is stored in `.vflow/.runtime/current-task`.
+
 ## Input Contract
 
 - User's task description (classified as T2)
@@ -47,6 +62,7 @@ Run `python .vflow/scripts/task.py advance` (creates worklog.md), then:
 - Before coding, read the spec files listed in design.md's spec manifest (关联规范)
 - Implement items one by one: check `[x]`, append a worklog.md row (`| time | file | change |`) — **log every changed file; the archive-time mtime cross-check depends on it**, mark the Claude task completed
 - Scope change → update requirement.md R-IDs and design.md checklist BEFORE implementing
+- Code spec rule: new module/class/public interface → write function-level spec BEFORE implementation per vflow-code (grade → spec → review → implement); modifying existing public interface → update spec BEFORE changing code
 - Test hard rule (exempt if config.test_required=false): no test dir → create scaffold per vflow-test (REQUIRED — machine verification needs a runnable test_command); new class/public interface → test cases (happy path + edge)
 
 ### 5. Machine Verification (implementing → verified) [required·once]

@@ -31,6 +31,23 @@ Prefer the spec manifest in the task's plan.md (关联规范 — files + reasons
 - Violates [RULE] level → CRITICAL (core safety / resource) or WARNING (style / structure)
 - Violates [SUGGEST] level → SUGGESTION
 
+### 3.5 Design Logic Audit (Critical Thinking) [required·conditional]
+
+**Trigger**: T2 tasks that contain design decisions (ADR entries in design.md). Skip for T1 tasks and pure bugfixes with no design choices.
+
+Apply the 4-point critical thinking examination to each design decision / ADR:
+
+| # | Examination | What to check |
+| :--- | :--- | :--- |
+| 1 | **Premise reliable?** | Are the stated constraints and assumptions still true? Were any invalidated during implementation? |
+| 2 | **Evidence sufficient?** | Is the decision backed by concrete data (benchmarks, test results, prior experience) or just intuition? |
+| 3 | **Logic coherent?** | Does the conclusion follow from the premises? Any logical jumps or unstated dependencies? |
+| 4 | **Better alternative?** | Given what we now know post-implementation, is there a simpler or more robust approach we missed? |
+
+**Output**: For each ADR examined, append one line to the review report:
+- `✅ ADR-N: all 4 checks passed`
+- `⚠ ADR-N: [exam #] failed — {finding}` → escalate to WARNING level
+
 ### 4. Confidence Filter [required·once]
 Only report high-confidence findings (definite violation, specific spec entry cited). When uncertain, downgrade (WARNING → SUGGESTION) or omit.
 
