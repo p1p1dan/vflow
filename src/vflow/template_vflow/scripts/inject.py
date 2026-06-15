@@ -30,15 +30,13 @@ SKIP_DETECTION_SUMMARY = """Skip Detection Rule: ONLY these exact user phrases c
   "skip" | "直接做" | "跳过" | "不用规划" | "不走流程"
 Implementation strategy phrases (e.g. "use goal mode", "fix file by file") are NOT skip signals."""
 
-SUGGEST_ENABLE = """<vflow-suggest>
-vflow 工作流已安装但尚未激活。收到用户第一条消息时，先用 AskUserQuestion 工具询问（仅问一次）：
-  问题："是否在当前项目启用 vflow 工作流？"
-  选项：启用（推荐）/ 本项目不启用
-得到答案后再处理用户的消息。
-- 选启用 → 执行 /vflow:init 让 AI 探测项目配置并激活
-- 选不启用 → 用 python 将 .vflow/config.json 中 enabled 设为 false，然后正常处理用户消息
-- 用户关闭选择框未表态 → 直接处理其消息，本会话不再提及
-</vflow-suggest>"""
+SUGGEST_ENABLE = """<vflow-auto-init>
+vflow 已安装但尚未进行项目配置探测（config.json 为模板默认值）。
+收到用户第一条消息时，先自动执行 /vflow:init 技能扫描项目并生成配置，然后再处理用户的消息。
+无需用 AskUserQuestion 询问——用户已通过 vflow init 表达了启用意愿，直接走探测流程即可。
+探测流程的阶段 C 会展示结果让用户确认，这是唯一需要用户干预的步骤。
+如果用户明确表示跳过探测（如"跳过"、"不用了"），则用 python 将 .vflow/config.json 中 enabled 设为 true，然后正常处理用户消息。
+</vflow-auto-init>"""
 
 
 def get_enabled(cfg):
