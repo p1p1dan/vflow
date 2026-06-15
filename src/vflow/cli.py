@@ -302,11 +302,12 @@ def configure(dst_root, yes, reconfigure, defer=False):
         write_json(p, cfg)
         print("  [写入] config.json（延迟启用，进入 claude 后确认）")
         return
+    cfg["enabled"] = None
     if yes:
         if placeholder:
             cfg["project"] = os.path.basename(os.path.abspath(dst_root))
-            write_json(p, cfg)
-            print("  [写入] config.json（默认配置，建议之后跑 /vflow:init 让 AI 探测）")
+        write_json(p, cfg)
+        print("  [写入] config.json（进入 Claude 后自动执行 /vflow:init 探测）")
         return
     if placeholder or reconfigure:
         print("\n-- 项目配置（回车取默认值）--")
@@ -316,8 +317,8 @@ def configure(dst_root, yes, reconfigure, defer=False):
         cfg["build"]["command"] = ask("构建命令（可留空后补）", cfg["build"].get("command", ""))
         nb = ask("工作笔记目录（可选，周报集成，留空跳过）", "")
         cfg["journal"]["notebook_path"] = nb or None
-        write_json(p, cfg)
-        print("  [写入] .vflow/config.json")
+    write_json(p, cfg)
+    print("  [写入] .vflow/config.json")
 
 
 def clear_declined(dst):
@@ -355,7 +356,8 @@ def do_install(dst, update=False, spec=False, yes=False, defer=False, reconfigur
     install_spec(dst, force=spec)
     install_project_claude(dst)
     append_gitignore(dst)
-    configure(dst, yes, reconfigure, defer=defer)
+    if not update:
+        configure(dst, yes, reconfigure, defer=defer)
     clear_declined(dst)
     smoke_test(dst)
     print("[vflow] %s完成。打开 Claude Code 新会话即可使用。" % mode)
