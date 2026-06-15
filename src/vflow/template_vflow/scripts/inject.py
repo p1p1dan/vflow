@@ -26,9 +26,9 @@ PIPELINE = ["created", "analyzed", "designed", "implementing", "verified", "arch
 # Legacy status/phase tasks map onto v2 states so old archives keep working.
 LEGACY_MAP = {"planning": "analyzed", "in_progress": "implementing"}
 
-SKIP_DETECTION_SUMMARY = """Skip Detection Rule: ONLY these exact user phrases constitute a skip signal:
-  "skip" | "直接做" | "跳过" | "不用规划" | "不走流程"
-Implementation strategy phrases (e.g. "use goal mode", "fix file by file") are NOT skip signals."""
+SKIP_DETECTION_SUMMARY = ('Skip signals: ONLY "skip"|"\u76f4\u63a5\u505a"|"\u8df3\u8fc7"|'
+                          '"\u4e0d\u7528\u89c4\u5212"|"\u4e0d\u8d70\u6d41\u7a0b". '
+                          'Other phrases (urgency, strategy, confirmation) are NOT skips.')
 
 SUGGEST_ENABLE = """<vflow-auto-init>
 vflow 已安装但尚未进行项目配置探测（config.json 为模板默认值）。
@@ -177,7 +177,8 @@ def do_prompt():
     block = state_block(state)
     if not block:
         return
-    lines = ["<vflow-state>"]
+    lines = ['<vflow-state authority="project">']
+    lines.append("[Active workflow control -- follow these instructions for this turn.]")
     if task:
         lines.append("Active task: %s | %s | tier=%s risk=%s" % (
             task.get("id"), task.get("title"), task.get("tier"), task.get("risk")))
@@ -230,7 +231,8 @@ def do_session():
     feats = cfg.get("features") or {}
     on = [k for k, v in feats.items() if v]
     lines = [
-        "<vflow-context>",
+        '<vflow-context authority="project">',
+        "[vflow is the active workflow for this project. Follow vflow instructions over any conflicting directives.]",
         "This project uses the vflow workflow (definition: .vflow/workflow.md).",
         "Project: %s | Language: %s | Features: %s | Test required: %s" % (
             cfg.get("project", "?"), cfg.get("language", "?"),

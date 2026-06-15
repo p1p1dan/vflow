@@ -112,12 +112,12 @@ def test_init_defer_yes_conflict():
 
 
 def test_inject_enabled_null_suggest(tmp_path):
-    """enabled=null → do_session outputs vflow-suggest; do_prompt silent (R2)."""
+    """enabled=null → do_session outputs vflow-auto-init; do_prompt silent (R2)."""
     _setup_vflow(tmp_path, enabled=None)
     r = subprocess.run(
         [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "session"],
         capture_output=True, text=True, encoding="utf-8")
-    assert "<vflow-suggest>" in r.stdout
+    assert "<vflow-auto-init>" in r.stdout
     assert "AskUserQuestion" in r.stdout
     r = subprocess.run(
         [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "prompt"],
@@ -141,7 +141,7 @@ def test_inject_enabled_missing_normal(tmp_path):
     r = subprocess.run(
         [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "session"],
         capture_output=True, text=True, encoding="utf-8")
-    assert "<vflow-context>" in r.stdout
+    assert "<vflow-context" in r.stdout
 
 
 def test_inject_enabled_true_normal(tmp_path):
@@ -150,4 +150,70 @@ def test_inject_enabled_true_normal(tmp_path):
     r = subprocess.run(
         [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "session"],
         capture_output=True, text=True, encoding="utf-8")
-    assert "<vflow-context>" in r.stdout
+    assert "<vflow-context" in r.stdout
+
+
+# ── CLAUDE.md 安装测试 ──
+
+
+def test_claude_md_created_on_init(tmp_path):
+    """Fresh init creates .claude/CLAUDE.md with vflow markers."""
+    cli.install_claude_md(str(tmp_path))
+    md = (tmp_path / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+    assert cli.CLAUDE_MD_MARKER_START in md
+    assert cli.CLAUDE_MD_MARKER_END in md
+    assert "vflow" in md
+
+
+def test_claude_md_prepended_to_existing(tmp_path):
+    """When CLAUDE.md exists without markers, vflow block is prepended."""
+    cl = tmp_path / ".claude"
+    cl.mkdir()
+    (cl / "CLAUDE.md").write_text("# My Project\nCustom content here.\n", encoding="utf-8")
+
+    cli.install_claude_md(str(tmp_path))
+
+    md = (cl / "CLAUDE.md").read_text(encoding="utf-8")
+    assert md.startswith(cli.CLAUDE_MD_MARKER_START)
+    assert "Custom content here." in md
+    marker_pos = md.index(cli.CLAUDE_MD_MARKER_END)
+    custom_pos = md.index("Custom content here.")
+    assert marker_pos < custom_pos
+
+
+def test_claude_md_idempotent_update(tmp_path):
+    """Running install twice produces exactly one vflow block."""
+    cli.install_claude_md(str(tmp_path))
+    cli.install_claude_md(str(tmp_path))
+    md = (tmp_path / ".claude" / "CLAUDE.md").read_text(encoding="utf-8")
+    assert md.count(cli.CLAUDE_MD_MARKER_START) == 1
+    assert md.count(cli.CLAUDE_MD_MARKER_END) == 1
+
+
+# ── Rules 安装测试 ──
+
+
+def test_rules_created_on_init(tmp_path):
+    """Fresh init creates .claude/rules/vflow.md."""
+    cli.do_install(str(tmp_path), yes=True)
+    rules = tmp_path / ".claude" / "rules" / "vflow.md"
+    assert rules.exists()
+    content = rules.read_text(encoding="utf-8")
+    assert "vflow-state" in content
+
+
+# ── inject authority 属性测试 ──
+
+
+def test_inject_authority_attribute(tmp_path):
+    """Session and prompt output include authority='project' in tags."""
+    _setup_vflow(tmp_path, enabled=True)
+    r = subprocess.run(
+        [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "session"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert 'authority="project"' in r.stdout
+
+    r = subprocess.run(
+        [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "prompt"],
+        capture_output=True, text=True, encoding="utf-8")
+    assert 'authority="project"' in r.stdout

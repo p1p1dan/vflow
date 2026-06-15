@@ -21,6 +21,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -88,6 +89,9 @@ PROJECT_HOOKS = {
 # 全局资产（仅发现与启用层：detect 钩子 + /vflow:init 引导命令）
 GLOBAL_COMMANDS = ["init.md"]
 GITIGNORE_LINES = [".vflow/journal/", ".vflow/.runtime/"]
+
+CLAUDE_MD_MARKER_START = "<!-- vflow:authority:start -->"
+CLAUDE_MD_MARKER_END = "<!-- vflow:authority:end -->"
 
 
 def read_json(path, default):
@@ -207,6 +211,37 @@ def install_spec(dst_root, force):
     print("  [写入] .vflow/spec/（规范库）")
 
 
+def install_claude_md(dst_root):
+    """Install or update the vflow authority section in .claude/CLAUDE.md."""
+    cl_dir = os.path.join(dst_root, ".claude")
+    os.makedirs(cl_dir, exist_ok=True)
+    target = os.path.join(cl_dir, "CLAUDE.md")
+
+    template_path = os.path.join(SRC_CLAUDE, "CLAUDE.md")
+    with open(template_path, encoding="utf-8") as f:
+        vflow_block = f.read().strip()
+
+    if not os.path.exists(target):
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(vflow_block + "\n")
+        print("  [写入] .claude/CLAUDE.md（vflow authority block）")
+        return
+
+    with open(target, encoding="utf-8") as f:
+        existing = f.read()
+
+    if CLAUDE_MD_MARKER_START in existing:
+        pattern = re.escape(CLAUDE_MD_MARKER_START) + r".*?" + re.escape(CLAUDE_MD_MARKER_END)
+        updated = re.sub(pattern, vflow_block, existing, flags=re.DOTALL)
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(updated)
+        print("  [更新] .claude/CLAUDE.md（vflow authority block）")
+    else:
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(vflow_block + "\n\n" + existing)
+        print("  [追加] .claude/CLAUDE.md（vflow authority block 置顶）")
+
+
 def install_project_claude(dst_root):
     """项目级 .claude 资产：随项目 git，同事 clone 即得（无需 pip）。"""
     cl = os.path.join(dst_root, ".claude")
@@ -216,6 +251,14 @@ def install_project_claude(dst_root):
         shutil.copy2(os.path.join(SRC_CLAUDE, "commands", "vflow", f),
                      os.path.join(cmd_dst, f))
     print("  [写入] .claude/（%d 命令）" % len(PROJECT_COMMANDS))
+    install_claude_md(dst_root)
+    # 项目级 rules
+    rules_src = os.path.join(SRC_CLAUDE, "rules", "vflow.md")
+    if os.path.exists(rules_src):
+        rules_dst = os.path.join(cl, "rules")
+        os.makedirs(rules_dst, exist_ok=True)
+        shutil.copy2(rules_src, os.path.join(rules_dst, "vflow.md"))
+        print("  [写入] .claude/rules/vflow.md")
     # 合并项目 settings.json hooks（相对路径，跨设备无依赖）
     sp = os.path.join(cl, "settings.json")
     settings = read_json(sp, None)
