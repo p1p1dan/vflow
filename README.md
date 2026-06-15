@@ -9,7 +9,12 @@
 **方式一：pip 安装（推荐发起人/新项目）**
 
 ```bash
+# GitHub（外网）
 pip install git+https://github.com/p1p1dan/vflow.git
+
+# 公司内网 GitLab
+pip install git+https://192.168.12.109/Dan/vflow.git
+
 cd <项目目录>
 vflow init .
 ```
@@ -64,6 +69,11 @@ vflow setup                  # 手动刷新全局资产（一般不需要，init
 ## 升级
 
 ```bash
+# GitHub（外网）
 pip install --upgrade git+https://github.com/p1p1dan/vflow.git
+
+# 公司内网 GitLab
+pip install --upgrade git+https://192.168.12.109/Dan/vflow.git
+
 # 全局资产自动刷新（下次运行任意 vflow 命令时）；各项目执行 vflow update <路径>
 ```
