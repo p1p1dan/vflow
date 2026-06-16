@@ -360,19 +360,21 @@ async function configure(dstRoot, yes, reconfigure, defer = false) {
   const cfg = readJson(p, {});
   const placeholder = String(cfg.project || '').startsWith('<');
 
+  // 统一：默认启用；initialized 初始为 false，由 /vflow:init 完成探测后置 true
+  cfg.enabled = true;
+  if (cfg.initialized !== true) cfg.initialized = false;
+
   if (defer) {
     if (placeholder) cfg.project = path.basename(path.resolve(dstRoot));
-    cfg.enabled = null;
     writeJson(p, cfg);
-    console.log('  [写入] config.json（延迟启用，进入 claude 后确认）');
+    console.log('  [写入] config.json（已启用，待 Claude 会话中运行 /vflow:init 完成探测）');
     return;
   }
 
-  cfg.enabled = null;
   if (yes) {
     if (placeholder) cfg.project = path.basename(path.resolve(dstRoot));
     writeJson(p, cfg);
-    console.log('  [写入] config.json（进入 Claude 后自动执行 /vflow:init 探测）');
+    console.log('  [写入] config.json（已启用，进入 Claude 后可运行 /vflow:init 完成探测）');
     return;
   }
 
@@ -387,6 +389,8 @@ async function configure(dstRoot, yes, reconfigure, defer = false) {
     const nb = await ask('工作笔记目录（可选，周报集成，留空跳过）', '');
     if (!cfg.journal) cfg.journal = {};
     cfg.journal.notebook_path = nb || null;
+    // 用户手工填了关键字段 — 视为人工探测完成
+    cfg.initialized = true;
   }
 
   writeJson(p, cfg);

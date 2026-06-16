@@ -31,15 +31,22 @@ const SKIP_DETECTION_SUMMARY =
 
 const SUGGEST_ENABLE = `<vflow-auto-init>
 vflow \u5df2\u5b89\u88c5\u4f46\u5c1a\u672a\u8fdb\u884c\u9879\u76ee\u914d\u7f6e\u63a2\u6d4b\uff08config.json \u4e3a\u6a21\u677f\u9ed8\u8ba4\u503c\uff09\u3002
-\u6536\u5230\u7528\u6237\u7b2c\u4e00\u6761\u6d88\u606f\u65f6\uff0c\u5148\u81ea\u52a8\u6267\u884c /vflow:init \u6280\u80fd\u626b\u63cf\u9879\u76ee\u5e76\u751f\u6210\u914d\u7f6e\uff0c\u7136\u540e\u518d\u5904\u7406\u7528\u6237\u7684\u6d88\u606f\u3002
-\u65e0\u9700\u7528 AskUserQuestion \u8be2\u95ee\u2014\u2014\u7528\u6237\u5df2\u901a\u8fc7 vflow init \u8868\u8fbe\u4e86\u542f\u7528\u610f\u613f\uff0c\u76f4\u63a5\u8d70\u63a2\u6d4b\u6d41\u7a0b\u5373\u53ef\u3002
-\u63a2\u6d4b\u6d41\u7a0b\u7684\u9636\u6bb5 C \u4f1a\u5c55\u793a\u7ed3\u679c\u8ba9\u7528\u6237\u786e\u8ba4\uff0c\u8fd9\u662f\u552f\u4e00\u9700\u8981\u7528\u6237\u5e72\u9884\u7684\u6b65\u9aa4\u3002
-\u5982\u679c\u7528\u6237\u660e\u786e\u8868\u793a\u8df3\u8fc7\u63a2\u6d4b\uff08\u5982\u201c\u8df3\u8fc7\u201d\u3001\u201c\u4e0d\u7528\u4e86\u201d\uff09\uff0c\u5219\u7528 node \u5c06 .vflow/config.json \u4e2d enabled \u8bbe\u4e3a true\uff0c\u7136\u540e\u6b63\u5e38\u5904\u7406\u7528\u6237\u6d88\u606f\u3002
+\u5904\u7406\u7528\u6237\u7b2c\u4e00\u6761\u6d88\u606f\u524d\uff0c\u5148\u5224\u65ad\u5b83\u662f\u5426\u9700\u8981\u9879\u76ee\u4e0a\u4e0b\u6587\uff1a
+- \u9700\u8981\uff08\u6539\u4ee3\u7801/\u67e5\u4ee3\u7801/\u6392\u67e5\u95ee\u9898/\u505a\u5f00\u53d1\u4efb\u52a1\uff09\u2192 \u5148\u8c03\u7528 /vflow:init \u5b8c\u6210\u63a2\u6d4b\uff0c\u518d\u5904\u7406\u6d88\u606f
+- \u4e0d\u9700\u8981\uff08\u5173\u4e8e vflow/Claude Code \u5de5\u5177\u672c\u8eab\u7684\u5143\u95ee\u9898\u3001\u901a\u7528\u77e5\u8bc6\u95ee\u7b54\u3001\u7eaf\u6570\u5b66/\u8bed\u8a00/\u95f2\u804a\uff09\u2192 \u76f4\u63a5\u5904\u7406\uff0c\u4e0d\u5fc5\u63a2\u6d4b
+\u65e0\u9700\u7528 AskUserQuestion \u8be2\u95ee"\u662f\u5426\u542f\u7528"\u2014\u2014\u7528\u6237\u5df2\u901a\u8fc7 vflow init \u8868\u8fbe\u542f\u7528\u610f\u613f\uff1b\u63a2\u6d4b\u9636\u6bb5 C \u4f1a\u5c55\u793a\u7ed3\u679c\u8ba9\u7528\u6237\u786e\u8ba4\uff0c\u8fd9\u662f\u552f\u4e00\u9700\u8981\u7528\u6237\u5e72\u9884\u7684\u6b65\u9aa4\u3002
+\u82e5\u7528\u6237\u660e\u786e\u8df3\u8fc7\u63a2\u6d4b\uff08\u5982"\u8df3\u8fc7"\u3001"\u4e0d\u7528\u4e86"\uff09\uff0c\u7528 node \u5c06 .vflow/config.json \u7684 enabled \u8bbe\u4e3a true\uff0c\u7136\u540e\u6b63\u5e38\u5904\u7406\u7528\u6237\u6d88\u606f\u3002
 </vflow-auto-init>`;
 
-function getEnabled(cfg) {
-  if ("enabled" in cfg) return cfg.enabled;
-  return true;
+function readConfigFlags(cfg) {
+  // enabled: \u9ed8\u8ba4 true\uff1b\u4ec5\u663e\u5f0f false \u624d\u9759\u9ed8 (\u8001\u914d\u7f6e enabled === null \u89c6\u4e3a\u9ed8\u8ba4\u542f\u7528)
+  // initialized: \u9ed8\u8ba4 false\uff1b\u4ec5\u663e\u5f0f true \u624d\u89c6\u4e3a\u63a2\u6d4b\u5b8c\u6210
+  let enabled = cfg.enabled;
+  if (enabled === null || enabled === undefined) enabled = true;
+  return {
+    enabled: enabled !== false,
+    initialized: cfg.initialized === true,
+  };
 }
 
 function read(path) {
@@ -176,8 +183,8 @@ function pipelineLine(state) {
 
 function doPrompt() {
   const cfg = readJson(CONFIG, {});
-  const enabled = getEnabled(cfg);
-  if (enabled !== true) return;
+  const { enabled } = readConfigFlags(cfg);
+  if (!enabled) return;
 
   const [state, task, taskDir] = currentState();
   const block = stateBlock(state);
@@ -241,12 +248,14 @@ function doPrompt() {
 
 function doSession() {
   const cfg = readJson(CONFIG, {});
-  const enabled = getEnabled(cfg);
-  if (enabled === null || enabled === undefined) {
+  const { enabled, initialized } = readConfigFlags(cfg);
+  if (!enabled) return;
+  if (!initialized) {
+    // Option 2: minimal injection — only SUGGEST_ENABLE, no language/features
+    // (template defaults could mislead AI before detection completes)
     process.stdout.write(SUGGEST_ENABLE + "\n");
     return;
   }
-  if (enabled === false) return;
 
   const feats = cfg.features || {};
   const on = Object.entries(feats)

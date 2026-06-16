@@ -16,21 +16,36 @@ $ARGUMENTS
 
 ### 阶段 A：全仓清点
 
-1. 顶层目录结构（`ls` / 浏览 2 层深度，跳过 build/node_modules/第三方库目录）
-2. 统计主要语言（按扩展名：.cpp/.h/.py/.cs）
+按优先级取信息源，**先看 manifest，再扫目录，最后查 git**。
+
+1. **优先读 manifest 文件**（按存在性，任一存在即采纳）：
+   `README.md` / `package.json` / `pyproject.toml` / `Cargo.toml` / `go.mod` / `CMakeLists.txt` / `*.sln` / `*.pro`
+2. **条件读取**（如存在，提取项目描述/约定，权重高于目录推断）：
+   `.claude/CLAUDE.md`
+3. **顶层目录结构**（`ls` 2 层深度），跳过以下噪声目录：
+   - 工具元数据：`.vflow/` `.git/` `.idea/` `.vscode/`
+   - 第三方/产物：`node_modules/` `vendor/` `third_party/` `build/` `dist/` `target/` `out/`
+4. **git 历史**（仅当 `.git/` 存在，跑命令，不读目录）：
+   - `git log --name-only -50 | sort | uniq -c | sort -rn | head -20`
+     → 高频改动文件，用于辅助推断 `core_paths`
+   - `git log --oneline --since=3.months | wc -l`
+     → 项目活跃度参考
+5. **统计主要语言**（按扩展名，排除上述跳过目录）：`.cpp/.h/.py/.cs/.js/.ts/.go/.rs` 等
 
 ### 阶段 B：特征探测
 
 | 探测项 | 方法 |
 | :--- | :--- |
-| 构建系统 | CMakeLists.txt → CMake；*.pro → qmake；*.sln/*.vcxproj → VS；setup.py/pyproject → Python |
-| 构建命令 | 按构建系统给出常用命令草案（如 `cmake --build build`），不臆造路径 |
+| 构建系统 | CMakeLists.txt → CMake；*.pro → qmake；*.sln/*.vcxproj → VS；setup.py/pyproject → Python；package.json → npm/pnpm/yarn；Cargo.toml → cargo；go.mod → go |
+| 构建命令 | 按构建系统给出常用命令草案（如 `cmake --build build`），不臆造路径；优先用 manifest 里 scripts 段已声明的命令 |
 | qt 特性 | .pro 文件 / CMake 中 find_package(Qt..) / #include <Q...> |
 | embedded 特性 | 零长数组、volatile 寄存器、__attribute__、fpga/driver 等目录名 |
 | binding 特性 | pybind11/SWIG/P-Invoke/extern "C" 导出 |
 | 测试现状 | tests/ 目录是否存在、用什么框架 |
 | test_required | 默认 true（新增代码必须有测试）；探测结果中向用户确认是否保持 |
-| core_paths | 候选 = 被引用最多的算法/核心目录（如 src/algorithm/）；从命名和 include 关系推断 |
+| core_paths | 双信号源：(1) git log 热点文件目录（首选，准确度高）(2) 被引用最多的核心目录（fallback，从命名和 include 关系推断）|
+
+**空项目快速路径**：若阶段 A 的 manifest 全无、源码文件 ≤ 2 个、且无 git 历史 → 跳过阶段 B 详细探测，直接进入阶段 C 展示"空项目（无可探测特征）"草案。
 
 ### 阶段 C：确认与写入 [HARD STOP]
 
@@ -45,7 +60,7 @@ $ARGUMENTS
 确认无误回复 ok，或直接指出需要修改的项。
 ```
 
-用户确认后写入 `.vflow/config.json`（保留已有的 journal 等配置，只更新探测字段），同时将 `enabled` 设为 `true`（激活工作流）。
+用户确认后写入 `.vflow/config.json`（保留已有的 journal 等配置，只更新探测字段），并将 `initialized` 设为 `true` 标记探测完成。`enabled` 保持原值不动（默认 true；若用户主动设为 false 表示禁用 vflow，探测不应覆盖此选择）。
 
 ### 阶段 D：收尾建议
 
@@ -55,5 +70,6 @@ $ARGUMENTS
 ## 安全边界
 
 1. 只读源码 + 只写 `.vflow/config.json`，不改任何源代码
-2. 跳过第三方库目录（third_party/vendor/external 等），不将其计入 core_paths
+2. 跳过第三方库目录（third_party/vendor/external 等）和工具元数据目录（.vflow/.git/.idea/.vscode 等），不将其计入 core_paths
 3. 探测不确定的项标注"待确认"，不臆造
+4. git 命令仅用于读取历史信息（log/diff/blame），禁止任何写操作（commit/push/reset 等）

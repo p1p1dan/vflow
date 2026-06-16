@@ -32,17 +32,21 @@ SKIP_DETECTION_SUMMARY = ('Skip signals: ONLY "skip"|"\u76f4\u63a5\u505a"|"\u8df
 
 SUGGEST_ENABLE = """<vflow-auto-init>
 vflow 已安装但尚未进行项目配置探测（config.json 为模板默认值）。
-收到用户第一条消息时，先自动执行 /vflow:init 技能扫描项目并生成配置，然后再处理用户的消息。
-无需用 AskUserQuestion 询问——用户已通过 vflow init 表达了启用意愿，直接走探测流程即可。
-探测流程的阶段 C 会展示结果让用户确认，这是唯一需要用户干预的步骤。
-如果用户明确表示跳过探测（如"跳过"、"不用了"），则用 python 将 .vflow/config.json 中 enabled 设为 true，然后正常处理用户消息。
+处理用户第一条消息前，先判断它是否需要项目上下文：
+- 需要（改代码/查代码/排查问题/做开发任务）→ 先调用 /vflow:init 完成探测，再处理消息
+- 不需要（关于 vflow/Claude Code 工具本身的元问题、通用知识问答、纯数学/语言/闲聊）→ 直接处理，不必探测
+无需用 AskUserQuestion 询问"是否启用"——用户已通过 vflow init 表达启用意愿；探测阶段 C 会展示结果让用户确认，这是唯一需要用户干预的步骤。
+若用户明确跳过探测（如"跳过"、"不用了"），用 python 将 .vflow/config.json 的 enabled 设为 true，然后正常处理用户消息。
 </vflow-auto-init>"""
 
 
-def get_enabled(cfg):
-    if "enabled" in cfg:
-        return cfg["enabled"]
-    return True
+def read_config_flags(cfg):
+    """enabled: 默认 true，仅显式 false 才静默（老配置 enabled=null 视为默认启用）。
+    initialized: 默认 false，仅显式 true 才视为探测完成。"""
+    enabled = cfg.get("enabled") if "enabled" in cfg else True
+    if enabled is None:
+        enabled = True
+    return enabled is not False, cfg.get("initialized") is True
 
 
 def read(path):
@@ -170,8 +174,8 @@ def pipeline_line(state):
 
 def do_prompt():
     cfg = read_json(CONFIG, {})
-    enabled = get_enabled(cfg)
-    if enabled is not True:
+    enabled, _initialized = read_config_flags(cfg)
+    if not enabled:
         return
     state, task, task_dir = current_state()
     block = state_block(state)
@@ -222,11 +226,13 @@ def do_prompt():
 
 def do_session():
     cfg = read_json(CONFIG, {})
-    enabled = get_enabled(cfg)
-    if enabled is None:
-        print(SUGGEST_ENABLE)
+    enabled, initialized = read_config_flags(cfg)
+    if not enabled:
         return
-    if enabled is False:
+    if not initialized:
+        # Option 2: minimal injection — only SUGGEST_ENABLE, no language/features
+        # (template defaults could mislead AI before detection completes)
+        print(SUGGEST_ENABLE)
         return
     feats = cfg.get("features") or {}
     on = [k for k, v in feats.items() if v]
