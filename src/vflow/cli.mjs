@@ -6,10 +6,12 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 
-const VERSION = '0.5.1';
-
 const __filename = fileURLToPath(import.meta.url);
 const PKG = path.dirname(__filename);
+// 单一真源：从 package.json 读版本号，避免硬编码与 package.json 脱节
+const VERSION = JSON.parse(
+  fs.readFileSync(path.join(PKG, '..', '..', 'package.json'), 'utf8')
+).version;
 const SRC_VFLOW = path.join(PKG, 'template_vflow');
 const SRC_CLAUDE = path.join(PKG, 'template_claude');
 const SRC_AGENTS = path.join(PKG, 'template_agents');

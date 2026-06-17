@@ -4,7 +4,7 @@
 
 > 本仓库只包含通用工作流框架与基础规范模板。项目个性化的规范回写、任务档案随各项目自己的 git 管理，不回流本仓库。
 
-## 四种上车方式
+## 三种上车方式
 
 **方式一：npm 安装（推荐 ✨，零 Python 依赖，Node.js 重写版）**
 
@@ -31,9 +31,6 @@ npm update -g @p1lab/vflow
 # GitHub（外网）
 pip install git+https://github.com/p1p1dan/vflow.git
 
-# 公司内网 GitLab
-pip install git+https://192.168.12.109/Dan/vflow.git
-
 cd <项目目录>
 vflow init .
 ```
@@ -42,11 +39,7 @@ vflow init .
 
 然后启动（或重启）Claude Code → 运行 `/vflow:init` 让 AI 探测项目配置（构建系统/语言/特性），完成后即可正常使用。
 
-**方式三：公司内部 AI Client（v0.2.58+）**
-
-直接启动 Claude 运行会话即可，Client 已集成 vflow。
-
-**方式四：什么都不装（同事/换设备）**
+**方式三：什么都不装（同事/换设备）**
 
 项目启用 vflow 后，全部资产（`.vflow/` + `.claude/`）随项目 git 提交。同事 clone 仓库、打开 Claude Code **直接可用**——只需要电脑上装了 Node.js ≥ 18（hooks 已统一为 node 实现）。
 
@@ -94,8 +87,6 @@ npm update -g @p1lab/vflow
 # 方式二：pip（Python 旧版）
 # GitHub（外网）
 pip install --upgrade git+https://github.com/p1p1dan/vflow.git
-# 公司内网 GitLab
-pip install --upgrade git+https://192.168.12.109/Dan/vflow.git
 
 # 全局资产自动刷新（下次运行任意 vflow 命令时）；各项目执行 vflow update <路径>
 ```

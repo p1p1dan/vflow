@@ -1,10 +1,10 @@
 {
   "name": "@p1lab/vflow",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "轻量级 AI 研发工作流：任务分级 + 档案留痕 + 规范驱动 + 测试硬规则（Claude Code）",
   "type": "module",
   "bin": {
-    "vflow": "./src/vflow/cli.mjs"
+    "vflow": "src/vflow/cli.mjs"
   },
   "files": [
     "src/vflow/cli.mjs",
@@ -15,7 +15,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/p1p1dan/vflow.git"
+    "url": "git+https://github.com/p1p1dan/vflow.git"
   },
   "license": "MIT",
   "engines": {
