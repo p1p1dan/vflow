@@ -1,0 +1,11 @@
+{
+  "id": "06-17-fix-version-and-scrub-private",
+  "title": "修复 cli.mjs 版本号硬编码，并清理 npm 包中可能泄漏的内部信息",
+  "tier": "T1",
+  "state": "archived",
+  "risk": "unset",
+  "created": "2026-06-17T14:10:12",
+  "test_scope": "node src/vflow/cli.mjs --version",
+  "verified_at": "2026-06-17T14:25:51",
+  "completed": "2026-06-17T14:26:12"
+}
