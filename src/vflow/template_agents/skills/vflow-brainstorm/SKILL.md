@@ -1,6 +1,6 @@
 ---
 name: vflow-brainstorm
-description: "Requirements discovery with auto-context, question gating, and diverge→converge. Called from vflow-task step 2 or standalone when requirements are unclear."
+description: "Requirements discovery with auto-context, question gating, and diverge→converge. Use when requirements are unclear, the user says '需求分析', '帮我理清需求', '需求讨论', 'analyze requirements', 'what do we need', or when starting a complex task that needs scope definition."
 ---
 
 # vflow Brainstorm — Requirements Discovery

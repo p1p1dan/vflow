@@ -5,8 +5,9 @@
 架构（混合式：项目为主，全局为辅）:
   项目资产（<项目>/，init 安装，随项目 git，clone 即得）:
     - .vflow/: workflow.md / config.json / spec/ / templates/ / tasks/ / scripts/
-    - .vflow/skills/: 9 个技能（task/quick/review/test/spec/brainstorm/debug/meta/think）
-    - .claude/: 6 个 /vflow:* 命令 + 项目 hooks
+    - .vflow/skills/: 2 个 pipeline 定义（task/quick）
+    - .agents/skills/: 13 个可发现技能（go/continue/commit/context + brainstorm/code/test/review/debug/think/spec/docs/meta）
+    - .claude/: 3 个 /vflow:* 命令 + 项目 hooks
   全局资产（~/.claude/，发现与启用层，init 自动安装）:
     - vflow/detect.py: 会话检测（已启用→透传；未启用→询问一次；已拒绝→静默）
     - commands/vflow/init.md: 全局启用入口
@@ -34,6 +35,7 @@ if hasattr(sys.stdout, "reconfigure"):
 PKG = os.path.dirname(os.path.abspath(__file__))
 SRC_VFLOW = os.path.join(PKG, "template_vflow")
 SRC_CLAUDE = os.path.join(PKG, "template_claude")
+SRC_AGENTS = os.path.join(PKG, "template_agents")
 DETECT_SRC = os.path.join(PKG, "detect.py")
 
 CLAUDE_HOME = os.path.join(os.path.expanduser("~"), ".claude")
@@ -53,22 +55,37 @@ MANAGED_VFLOW = [
     "templates/quick-entry.md",
     "skills/vflow-task/SKILL.md",
     "skills/vflow-quick/SKILL.md",
-    "skills/vflow-review/SKILL.md",
-    "skills/vflow-test/SKILL.md",
-    "skills/vflow-spec/SKILL.md",
-    "skills/vflow-brainstorm/SKILL.md",
-    "skills/vflow-debug/SKILL.md",
-    "skills/vflow-meta/SKILL.md",
-    "skills/vflow-think/SKILL.md",
 ]
 COPY_IF_ABSENT_VFLOW = [
     "config.json",
     "tasks/quick-log.md",
 ]
+MANAGED_AGENTS = [
+    "skills/vflow-go/SKILL.md",
+    "skills/vflow-continue/SKILL.md",
+    "skills/vflow-commit/SKILL.md",
+    "skills/vflow-context/SKILL.md",
+    "skills/vflow-brainstorm/SKILL.md",
+    "skills/vflow-code/SKILL.md",
+    "skills/vflow-test/SKILL.md",
+    "skills/vflow-review/SKILL.md",
+    "skills/vflow-debug/SKILL.md",
+    "skills/vflow-think/SKILL.md",
+    "skills/vflow-spec/SKILL.md",
+    "skills/vflow-docs/SKILL.md",
+    "skills/vflow-meta/SKILL.md",
+]
 # 项目级资产（随项目 git，同事 clone 即得，无需 pip）
-PROJECT_COMMANDS = ["go.md", "task.md", "quick.md", "commit.md", "init.md", "context.md"]
+PROJECT_COMMANDS = ["task.md", "quick.md", "init.md"]
 PROJECT_SKILLS = ["vflow-task", "vflow-quick", "vflow-review", "vflow-test", "vflow-spec",
                   "vflow-brainstorm", "vflow-debug", "vflow-meta", "vflow-think"]
+# v0.6: commands migrated to .agents/skills/ — clean on update
+MIGRATED_COMMANDS = ["go.md", "commit.md", "context.md"]
+# v0.6: skills migrated from .vflow/skills/ to .agents/skills/ — clean on update
+MIGRATED_VFLOW_SKILLS = [
+    "vflow-brainstorm", "vflow-code", "vflow-test", "vflow-review",
+    "vflow-debug", "vflow-think", "vflow-spec", "vflow-docs", "vflow-meta",
+]
 # 注入类 hook 兜底哲学（用户定调）：失败永不拦截输入，降级为一条注入提示，
 # 指挥 AI 用工具自查并向用户报告。控制流类 hook 不适用此模式。
 PROJECT_DEGRADED = ("<vflow-degraded>vflow inject hook failed. AI: run "
@@ -251,6 +268,12 @@ def install_project_claude(dst_root):
         shutil.copy2(os.path.join(SRC_CLAUDE, "commands", "vflow", f),
                      os.path.join(cmd_dst, f))
     print("  [写入] .claude/（%d 命令）" % len(PROJECT_COMMANDS))
+    # v0.6: clean commands migrated to .agents/skills/
+    for f in MIGRATED_COMMANDS:
+        p = os.path.join(cmd_dst, f)
+        if os.path.exists(p):
+            os.remove(p)
+            print("  [cleanup] .claude/commands/vflow/%s (migrated to .agents/skills/)" % f)
     install_claude_md(dst_root)
     # 项目级 rules
     rules_src = os.path.join(SRC_CLAUDE, "rules", "vflow.md")
@@ -308,6 +331,13 @@ def install_project_claude(dst_root):
         if os.path.isdir(old_skill):
             shutil.rmtree(old_skill)
             print("  [cleanup] .claude/skills/%s (moved to .vflow/skills/)" % s)
+
+
+def install_project_agents(dst_root):
+    """项目级 .agents 资产：可发现 skill（Claude Code / Cursor / Codex 自动扫描）。"""
+    for rel in MANAGED_AGENTS:
+        copy_one(SRC_AGENTS, rel, os.path.join(dst_root, ".agents"), overwrite=True)
+    print("  [写入] .agents/（%d 技能）" % len(MANAGED_AGENTS))
 
 
 def append_gitignore(dst_root):
@@ -398,6 +428,13 @@ def do_install(dst, update=False, spec=False, yes=False, defer=False, reconfigur
         print("  [cleanup] .vflow/templates/plan.md (replaced by design.md)")
     install_spec(dst, force=spec)
     install_project_claude(dst)
+    install_project_agents(dst)
+    # v0.6: clean skills migrated from .vflow/ to .agents/
+    for s in MIGRATED_VFLOW_SKILLS:
+        old = os.path.join(dst, ".vflow", "skills", s)
+        if os.path.isdir(old):
+            shutil.rmtree(old)
+            print("  [cleanup] .vflow/skills/%s (migrated to .agents/skills/)" % s)
     append_gitignore(dst)
     if not update:
         configure(dst, yes, reconfigure, defer=defer)

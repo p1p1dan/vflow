@@ -79,7 +79,8 @@ def _setup_vflow(tmp_path, enabled):
     src = Path(cli.SRC_VFLOW) / "scripts" / "inject.py"
     shutil.copy2(str(src), str(scripts_dir / "inject.py"))
     cfg = {"project": "test", "language": "python", "features": {},
-           "build": {"command": "", "test_command": ""}, "test_required": True}
+           "build": {"command": "", "test_command": ""}, "test_required": True,
+           "initialized": True}
     if enabled != "MISSING":
         cfg["enabled"] = enabled
     (vflow_dir / "config.json").write_text(
@@ -111,18 +112,26 @@ def test_init_defer_yes_conflict():
         sys.argv = old_argv
 
 
-def test_inject_enabled_null_suggest(tmp_path):
-    """enabled=null → do_session outputs vflow-auto-init; do_prompt silent (R2)."""
-    _setup_vflow(tmp_path, enabled=None)
+def test_inject_uninitialized_suggest(tmp_path):
+    """initialized=false → do_session outputs vflow-auto-init."""
+    vflow_dir = tmp_path / ".vflow"
+    scripts_dir = vflow_dir / "scripts"
+    scripts_dir.mkdir(parents=True)
+    src = Path(cli.SRC_VFLOW) / "scripts" / "inject.py"
+    shutil.copy2(str(src), str(scripts_dir / "inject.py"))
+    cfg = {"project": "test", "language": "python", "features": {},
+           "build": {"command": "", "test_command": ""}, "test_required": True,
+           "initialized": False}
+    (vflow_dir / "config.json").write_text(
+        json.dumps(cfg, ensure_ascii=False), encoding="utf-8")
+    (vflow_dir / "workflow.md").write_text(
+        "[workflow-state:no_task]\nNo active task.\n[/workflow-state:no_task]\n",
+        encoding="utf-8")
+
     r = subprocess.run(
         [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "session"],
         capture_output=True, text=True, encoding="utf-8")
     assert "<vflow-auto-init>" in r.stdout
-    assert "AskUserQuestion" in r.stdout
-    r = subprocess.run(
-        [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "prompt"],
-        capture_output=True, text=True, encoding="utf-8")
-    assert r.stdout.strip() == ""
 
 
 def test_inject_enabled_false_silent(tmp_path):
@@ -217,3 +226,81 @@ def test_inject_authority_attribute(tmp_path):
         [sys.executable, str(tmp_path / ".vflow" / "scripts" / "inject.py"), "prompt"],
         capture_output=True, text=True, encoding="utf-8")
     assert 'authority="project"' in r.stdout
+
+
+# ── Skill registration tests (R1/R3/R5/R7) ──
+
+
+def test_managed_agents_has_13_skills():
+    """R1: All 13 skills registered in MANAGED_AGENTS."""
+    assert len(cli.MANAGED_AGENTS) == 13
+    for rel in cli.MANAGED_AGENTS:
+        assert rel.startswith("skills/vflow-")
+        assert rel.endswith("/SKILL.md")
+
+
+def test_project_commands_reduced_to_3():
+    """R3: go/commit/context removed from PROJECT_COMMANDS (migrated to skills)."""
+    assert set(cli.PROJECT_COMMANDS) == {"task.md", "quick.md", "init.md"}
+    for migrated in cli.MIGRATED_COMMANDS:
+        assert migrated not in cli.PROJECT_COMMANDS
+
+
+def test_managed_vflow_skills_only_pipeline():
+    """R1: MANAGED_VFLOW retains only pipeline skills (vflow-task, vflow-quick)."""
+    skill_entries = [r for r in cli.MANAGED_VFLOW if "skills/" in r]
+    names = {r.split("/")[1] for r in skill_entries}
+    assert names == {"vflow-task", "vflow-quick"}
+
+
+def test_template_agents_skills_exist():
+    """R5: template_agents directory contains all 13 SKILL.md files."""
+    for rel in cli.MANAGED_AGENTS:
+        p = Path(cli.SRC_AGENTS) / rel
+        assert p.exists(), f"Missing template: {rel}"
+        content = p.read_text(encoding="utf-8")
+        assert "name:" in content
+        assert "description:" in content
+
+
+def test_install_creates_agents_skills(tmp_path):
+    """R1: do_install copies .agents/skills/ with all 13 skills."""
+    cli.do_install(str(tmp_path), yes=True)
+    agents_dir = tmp_path / ".agents" / "skills"
+    assert agents_dir.is_dir()
+    for rel in cli.MANAGED_AGENTS:
+        assert (tmp_path / ".agents" / rel).exists()
+
+
+def test_migrated_commands_cleaned_on_install(tmp_path):
+    """R3: Old go.md/commit.md/context.md commands are removed on install."""
+    cmd_dir = tmp_path / ".claude" / "commands" / "vflow"
+    cmd_dir.mkdir(parents=True)
+    for f in cli.MIGRATED_COMMANDS:
+        (cmd_dir / f).write_text("old", encoding="utf-8")
+    cli.do_install(str(tmp_path), yes=True)
+    for f in cli.MIGRATED_COMMANDS:
+        assert not (cmd_dir / f).exists(), f"{f} should be cleaned up"
+
+
+def test_migrated_vflow_skills_cleaned_on_install(tmp_path):
+    """R1: Old .vflow/skills/ directories for migrated skills are removed."""
+    for s in cli.MIGRATED_VFLOW_SKILLS:
+        d = tmp_path / ".vflow" / "skills" / s
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text("old", encoding="utf-8")
+    cli.do_install(str(tmp_path), yes=True)
+    for s in cli.MIGRATED_VFLOW_SKILLS:
+        assert not (tmp_path / ".vflow" / "skills" / s).is_dir()
+
+
+def test_cli_mjs_has_matching_constants():
+    """R7: cli.mjs has same MANAGED_AGENTS and MIGRATED constants."""
+    mjs = (Path(cli.PKG) / "cli.mjs").read_text(encoding="utf-8")
+    assert "const MANAGED_AGENTS" in mjs
+    assert "const MIGRATED_COMMANDS" in mjs
+    assert "const MIGRATED_VFLOW_SKILLS" in mjs
+    assert "installProjectAgents" in mjs
+    for rel in cli.MANAGED_AGENTS:
+        name = rel.split("/")[1]  # e.g. "vflow-go"
+        assert name in mjs, f"{name} not found in cli.mjs"

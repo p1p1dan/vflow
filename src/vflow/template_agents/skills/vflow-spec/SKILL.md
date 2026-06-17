@@ -1,6 +1,6 @@
 ---
 name: vflow-spec
-description: "Spec library knowledge writeback: capture conventions, patterns, and gotchas from implementation/debugging into .vflow/spec/ and update the index. Use when the user says 'record this in spec' / 'this should be a spec', or during task closeout when a valuable convention is discovered."
+description: "Spec library knowledge writeback: capture conventions, patterns, and gotchas into .vflow/spec/. Use when the user says '记录规范', '添加约定', '写入 spec', 'update spec', 'record convention', 'this should be a rule', or when a valuable convention is discovered during implementation."
 ---
 
 # vflow Spec Writeback

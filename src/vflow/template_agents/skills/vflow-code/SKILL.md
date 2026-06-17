@@ -1,6 +1,6 @@
 ---
 name: vflow-code
-description: "Code generation gate: before writing any new module, class, or public interface, produce a function-level spec (signature, parameter constraints, return value, boundary conditions, error handling). Auto-used during vflow-task implementation phase; user can also invoke independently with 'generate spec for XX'."
+description: "Function-level spec gate before implementation: signature, constraints, return value, boundary conditions, error handling. Use when creating new modules, classes, or public interfaces, or when the user says '接口设计', '写规格', '函数设计', 'design interface', 'write spec before code', 'spec gate'."
 ---
 
 # vflow Code Spec Gate
