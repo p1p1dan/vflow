@@ -1,0 +1,14 @@
+{
+  "id": "06-17-team-collab-design",
+  "title": "分析 maestro-flow 团队协同方案并设计 vflow 融合架构",
+  "tier": "T2",
+  "state": "archived",
+  "risk": "low",
+  "created": "2026-06-17T15:49:41",
+  "test_scope": "echo design-doc-review-pass",
+  "backs": [
+    "2026-06-17T16:19:26"
+  ],
+  "verified_at": "2026-06-17T16:19:40",
+  "completed": "2026-06-17T16:19:56"
+}

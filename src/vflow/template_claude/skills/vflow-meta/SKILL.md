@@ -1,6 +1,6 @@
 ---
 name: vflow-meta
-description: "Understand and customize the local vflow architecture. Use when modifying workflow behavior, adding skills, changing hooks, or needing to understand how vflow components connect."
+description: "Understand and customize the local vflow architecture: workflow rules, skill behavior, hook configuration, and spec library. Use when the user says '修改 vflow', 'vflow 怎么用', 'vflow 架构', 'customize workflow', 'how does vflow work', or needs to modify vflow infrastructure."
 ---
 
 # vflow Meta — Architecture & Customization Guide

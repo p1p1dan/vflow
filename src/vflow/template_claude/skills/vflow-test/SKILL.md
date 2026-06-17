@@ -1,6 +1,6 @@
 ---
 name: vflow-test
-description: "Test infrastructure creation and case generation: creates test scaffold (gtest / Qt Test / pytest + build integration) when no test directory exists, or generates unit test cases for specified classes/interfaces. Auto-used during implementation when no test infra is detected; user can also say 'add tests for XX' independently."
+description: "Test infrastructure creation and case generation: scaffolds test directories (gtest/Qt Test/pytest) and generates unit test cases for specified classes/interfaces. Use when the user says '写测试', '测试用例', '建测试', 'write tests', 'create test', 'add test cases', or when no test infrastructure exists."
 ---
 
 # vflow Test Infrastructure & Case Generation

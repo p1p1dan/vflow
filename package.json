@@ -10,8 +10,7 @@
     "src/vflow/cli.mjs",
     "src/vflow/detect.mjs",
     "src/vflow/template_vflow/**/*",
-    "src/vflow/template_claude/**/*",
-    "src/vflow/template_agents/**/*"
+    "src/vflow/template_claude/**/*"
   ],
   "repository": {
     "type": "git",

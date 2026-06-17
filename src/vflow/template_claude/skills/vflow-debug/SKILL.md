@@ -1,6 +1,6 @@
 ---
 name: vflow-debug
-description: "Deep bug analysis after fixing: root cause classification, failed-fix review, prevention mechanisms, systematic expansion, and knowledge capture into spec/. Use after fixing a bug to break the fix-forget-repeat cycle."
+description: "Deep post-bug analysis to break the fix-forget-repeat cycle: root cause classification, failed-fix review, prevention mechanisms, and knowledge capture. Use when the user says '分析 bug', '根因分析', '为什么出错', 'debug analysis', 'root cause', 'why did this break', or after fixing a recurring bug."
 ---
 
 # vflow Debug — Break the Loop

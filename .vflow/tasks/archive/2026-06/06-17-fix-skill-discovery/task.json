@@ -1,0 +1,11 @@
+{
+  "id": "06-17-fix-skill-discovery",
+  "title": "修复 .agents/skills 下的 skill 不被 Claude 自动发现的问题",
+  "tier": "T2",
+  "state": "archived",
+  "risk": "low",
+  "created": "2026-06-17T16:46:38",
+  "test_scope": "python -m pytest tests/",
+  "verified_at": "2026-06-17T17:24:02",
+  "completed": "2026-06-17T17:29:14"
+}

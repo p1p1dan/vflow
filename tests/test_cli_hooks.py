@@ -253,23 +253,23 @@ def test_managed_vflow_skills_only_pipeline():
     assert names == {"vflow-task", "vflow-quick"}
 
 
-def test_template_agents_skills_exist():
-    """R5: template_agents directory contains all 13 SKILL.md files."""
+def test_template_skills_exist():
+    """R5: template_claude/skills/ contains all 13 SKILL.md files."""
     for rel in cli.MANAGED_AGENTS:
-        p = Path(cli.SRC_AGENTS) / rel
+        p = Path(cli.SRC_CLAUDE) / rel
         assert p.exists(), f"Missing template: {rel}"
         content = p.read_text(encoding="utf-8")
         assert "name:" in content
         assert "description:" in content
 
 
-def test_install_creates_agents_skills(tmp_path):
-    """R1: do_install copies .agents/skills/ with all 13 skills."""
+def test_install_creates_claude_skills(tmp_path):
+    """R1: do_install copies .claude/skills/ with all 13 skills."""
     cli.do_install(str(tmp_path), yes=True)
-    agents_dir = tmp_path / ".agents" / "skills"
-    assert agents_dir.is_dir()
+    skills_dir = tmp_path / ".claude" / "skills"
+    assert skills_dir.is_dir()
     for rel in cli.MANAGED_AGENTS:
-        assert (tmp_path / ".agents" / rel).exists()
+        assert (tmp_path / ".claude" / rel).exists()
 
 
 def test_migrated_commands_cleaned_on_install(tmp_path):
@@ -294,13 +294,25 @@ def test_migrated_vflow_skills_cleaned_on_install(tmp_path):
         assert not (tmp_path / ".vflow" / "skills" / s).is_dir()
 
 
+def test_migrated_agents_skills_cleaned_on_install(tmp_path):
+    """R2: Old .agents/skills/vflow-* directories are removed on install."""
+    for s in cli.MIGRATED_AGENTS_SKILLS:
+        d = tmp_path / ".agents" / "skills" / s
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text("old", encoding="utf-8")
+    cli.do_install(str(tmp_path), yes=True)
+    for s in cli.MIGRATED_AGENTS_SKILLS:
+        assert not (tmp_path / ".agents" / "skills" / s).is_dir()
+
+
 def test_cli_mjs_has_matching_constants():
     """R7: cli.mjs has same MANAGED_AGENTS and MIGRATED constants."""
     mjs = (Path(cli.PKG) / "cli.mjs").read_text(encoding="utf-8")
     assert "const MANAGED_AGENTS" in mjs
     assert "const MIGRATED_COMMANDS" in mjs
     assert "const MIGRATED_VFLOW_SKILLS" in mjs
-    assert "installProjectAgents" in mjs
+    assert "const MIGRATED_AGENTS_SKILLS" in mjs
+    assert "installProjectSkills" in mjs
     for rel in cli.MANAGED_AGENTS:
         name = rel.split("/")[1]  # e.g. "vflow-go"
         assert name in mjs, f"{name} not found in cli.mjs"

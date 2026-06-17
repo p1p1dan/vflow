@@ -1,6 +1,6 @@
 ---
 name: vflow-review
-description: "Three-dimensional, three-level code review against vflow spec library (completeness / correctness / consistency × CRITICAL / WARNING / SUGGESTION). Auto-used during standard task quality check phase; user can also invoke independently with 'check against spec'."
+description: "Three-dimensional code review against spec library: completeness/correctness/consistency at CRITICAL/WARNING/SUGGESTION levels. Use when the user says '代码审查', '审查', '检查代码', 'review', 'check code', 'code review', or after finishing implementation."
 ---
 
 # vflow Spec Review

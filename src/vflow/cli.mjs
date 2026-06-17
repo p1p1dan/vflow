@@ -14,7 +14,6 @@ const VERSION = JSON.parse(
 ).version;
 const SRC_VFLOW = path.join(PKG, 'template_vflow');
 const SRC_CLAUDE = path.join(PKG, 'template_claude');
-const SRC_AGENTS = path.join(PKG, 'template_agents');
 const DETECT_SRC = path.join(PKG, 'detect.mjs');
 
 const CLAUDE_HOME = path.join(os.homedir(), '.claude');
@@ -59,10 +58,16 @@ const PROJECT_SKILLS = [
   'vflow-task', 'vflow-quick', 'vflow-review', 'vflow-test', 'vflow-spec',
   'vflow-brainstorm', 'vflow-debug', 'vflow-meta', 'vflow-think',
 ];
-// v0.6: commands migrated to .agents/skills/ — clean on update
+// v0.6: commands migrated to skills — clean on update
 const MIGRATED_COMMANDS = ['go.md', 'commit.md', 'context.md'];
-// v0.6: skills migrated from .vflow/skills/ to .agents/skills/ — clean on update
+// v0.6→0.7: skills migrated from .vflow/skills/ → .agents/skills/ → .claude/skills/
 const MIGRATED_VFLOW_SKILLS = [
+  'vflow-brainstorm', 'vflow-code', 'vflow-test', 'vflow-review',
+  'vflow-debug', 'vflow-think', 'vflow-spec', 'vflow-docs', 'vflow-meta',
+];
+// v0.7: .agents/skills/ was wrong path — clean on update
+const MIGRATED_AGENTS_SKILLS = [
+  'vflow-go', 'vflow-continue', 'vflow-commit', 'vflow-context',
   'vflow-brainstorm', 'vflow-code', 'vflow-test', 'vflow-review',
   'vflow-debug', 'vflow-think', 'vflow-spec', 'vflow-docs', 'vflow-meta',
 ];
@@ -271,12 +276,12 @@ function installProjectClaude(dstRoot) {
   }
   console.log(`  [写入] .claude/（${PROJECT_COMMANDS.length} 命令）`);
 
-  // v0.6: clean commands migrated to .agents/skills/
+  // v0.6: clean commands migrated to skills
   for (const f of MIGRATED_COMMANDS) {
     const p = path.join(cmdDst, f);
     if (fs.existsSync(p)) {
       fs.unlinkSync(p);
-      console.log(`  [cleanup] .claude/commands/vflow/${f} (migrated to .agents/skills/)`);
+      console.log(`  [cleanup] .claude/commands/vflow/${f} (migrated to skills)`);
     }
   }
 
@@ -348,20 +353,13 @@ function installProjectClaude(dstRoot) {
     }
   }
 
-  for (const s of PROJECT_SKILLS) {
-    const oldSkill = path.join(cl, 'skills', s);
-    if (fs.existsSync(oldSkill)) {
-      fs.rmSync(oldSkill, { recursive: true, force: true });
-      console.log(`  [cleanup] .claude/skills/${s} (moved to .vflow/skills/)`);
-    }
-  }
 }
 
-function installProjectAgents(dstRoot) {
+function installProjectSkills(dstRoot) {
   for (const rel of MANAGED_AGENTS) {
-    copyOne(SRC_AGENTS, rel, path.join(dstRoot, '.agents'), true);
+    copyOne(SRC_CLAUDE, rel, path.join(dstRoot, '.claude'), true);
   }
-  console.log(`  [写入] .agents/（${MANAGED_AGENTS.length} 技能）`);
+  console.log(`  [写入] .claude/skills/（${MANAGED_AGENTS.length} 技能）`);
 }
 
 function appendGitignore(dstRoot) {
@@ -483,13 +481,20 @@ async function doInstall(dst, { update = false, spec = false, yes = false, defer
 
   installSpec(dst, spec);
   installProjectClaude(dst);
-  installProjectAgents(dst);
-  // v0.6: clean skills migrated from .vflow/ to .agents/
+  installProjectSkills(dst);
+  // v0.6→0.7: clean skills from old locations
   for (const s of MIGRATED_VFLOW_SKILLS) {
     const old = path.join(dst, '.vflow', 'skills', s);
     if (fs.existsSync(old)) {
       fs.rmSync(old, { recursive: true, force: true });
-      console.log(`  [cleanup] .vflow/skills/${s} (migrated to .agents/skills/)`);
+      console.log(`  [cleanup] .vflow/skills/${s} (migrated to .claude/skills/)`);
+    }
+  }
+  for (const s of MIGRATED_AGENTS_SKILLS) {
+    const old = path.join(dst, '.agents', 'skills', s);
+    if (fs.existsSync(old)) {
+      fs.rmSync(old, { recursive: true, force: true });
+      console.log(`  [cleanup] .agents/skills/${s} (migrated to .claude/skills/)`);
     }
   }
   appendGitignore(dst);
