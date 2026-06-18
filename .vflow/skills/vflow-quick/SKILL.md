@@ -18,21 +18,21 @@ any audited task looks structurally identical.
 ## Steps
 
 ### 1. Create [required·once]
-`python .vflow/scripts/task.py create <slug> --title "<title>" --tier T1`
+`node .vflow/scripts/task.mjs create <slug> --title "<title>" --tier T1`
 
 ### 2. Requirement (created → analyzed) [required·once]
-Fill requirement.md thin: original request one line, skip clarification table if intent is clear, **1-2 R-IDs** (`- R1: ...`). Then `task.py advance`.
+Fill requirement.md thin: original request one line, skip clarification table if intent is clear, **1-2 R-IDs** (`- R1: ...`). Then `task.mjs advance`.
 
 ### 3. Design (analyzed → designed) [required·once]
-Fill design.md thin: "无架构影响" if so, change list 1-2 rows, checklist 1-3 items **each tagged (R<n>)**, test plan one row. Optionally `task.py set test_scope "<narrow command>"` if full suite is too heavy (declare in test plan). Then `task.py set risk low` and `task.py advance`.
+Fill design.md thin: "无架构影响" if so, change list 1-2 rows, checklist 1-3 items **each tagged (R<n>)**, test plan one row. Optionally `task.mjs set test_scope "<narrow command>"` if full suite is too heavy (declare in test plan). Then `task.mjs set risk low` and `task.mjs advance`.
 
 ### 4. Implement (designed → implementing → verified) [required·once]
-`task.py advance` to enter implementing. Code the change. Log every changed file in worklog.md.
+`task.mjs advance` to enter implementing. Code the change. Log every changed file in worklog.md.
 Test hard rule (exempt when config.test_required=false): logic change → update/add test case; pure comment/doc change → note exemption in worklog.
-Fill verify.md §1 (one `- R<n>: ...` line per R-ID), §2 "不适用" + reason if applicable. Then `task.py advance` — task.py executes the test command itself and appends the machine record. If it fails, fix and advance again.
+Fill verify.md §1 (one `- R<n>: ...` line per R-ID), §2 "不适用" + reason if applicable. Then `task.mjs advance` — task.mjs executes the test command itself and appends the machine record. If it fails, fix and advance again.
 
 ### 5. Archive (verified → archived) [required·once]
-`python .vflow/scripts/task.py done --summary "<one-liner>"`
+`node .vflow/scripts/task.mjs done --summary "<one-liner>"`
 Optionally add one index line to `.vflow/tasks/quick-log.md` pointing to the archived directory.
 
 ## Output Template

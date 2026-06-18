@@ -23,7 +23,7 @@ node .vflow/scripts/task.mjs status
 
 If node version unavailable, fall back to:
 ```bash
-python .vflow/scripts/task.py status
+node .vflow/scripts/task.mjs status
 ```
 
 ### 2. Route to Phase [required·once]

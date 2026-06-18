@@ -4,7 +4,7 @@
 通过用户级 settings.json hooks 在所有项目的 Claude Code 会话中运行）。
 
 行为:
-  项目已启用 vflow(.vflow/ 存在) -> 透传调用项目内 inject.py
+  项目已启用 vflow(.vflow/ 存在) -> 透传调用项目内 inject.mjs（或 inject.py）
   未启用 + 未拒绝 + session 模式  -> 注入"询问用户是否启用"的指引
   已拒绝                          -> 静默
 任何异常静默退出，绝不阻塞会话。
@@ -42,7 +42,7 @@ def declined(cwd):
 def project_has_hooks(cwd):
     try:
         with open(os.path.join(cwd, ".claude", "settings.json"), encoding="utf-8") as f:
-            return ".vflow/scripts/inject.py" in f.read()
+            return ".vflow/scripts/inject" in f.read()
     except Exception:
         return False
 
@@ -51,12 +51,23 @@ def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "prompt"
     # 会话 shell 可能 cd 进子目录，cwd 不可靠；优先用 Claude Code 提供的项目根
     cwd = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    inj = os.path.join(cwd, ".vflow", "scripts", "inject.py")
-    if os.path.exists(inj):
+    inj_mjs = os.path.join(cwd, ".vflow", "scripts", "inject.mjs")
+    inj_py = os.path.join(cwd, ".vflow", "scripts", "inject.py")
+    # Prefer inject.mjs; fall back to inject.py for legacy projects
+    if os.path.exists(inj_mjs):
+        inj = inj_mjs
+        runner = ["node", inj_mjs]
+    elif os.path.exists(inj_py):
+        inj = inj_py
+        runner = [sys.executable, inj_py]
+    else:
+        inj = None
+        runner = None
+    if inj:
         # 项目自带 hooks 时静默，避免双重注入；项目无 hooks（只提交了 .vflow）时代为注入
         if project_has_hooks(cwd):
             return 0
-        r = subprocess.run([sys.executable, inj, mode],
+        r = subprocess.run(runner + [mode],
                            capture_output=True, text=True, encoding="utf-8", timeout=15)
         if r.stdout:
             print(r.stdout, end="")

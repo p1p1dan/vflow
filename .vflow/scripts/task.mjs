@@ -38,7 +38,7 @@ const STATES = ["created", "analyzed", "designed", "implementing", "verified", "
 const TEST_OUTPUT_TAIL = 3000;
 const TEST_TIMEOUT = 600;
 
-const MACHINE_BLOCK_HEADER = "## 机器执行记录（task.py 写入，请勿手改）";
+const MACHINE_BLOCK_HEADER = "## 机器执行记录（task.mjs 写入，请勿手改）";
 
 // -- helpers --
 
@@ -433,12 +433,12 @@ function checkArchived(taskDir, cfg, task) {
       const off = d.getTimezoneOffset();
       const local = new Date(d.getTime() - off * 60000);
       const latestIso = local.toISOString().replace(/\.\d{3}Z$/, "");
-      errors.push(`source files changed after verification (${latestIso}). Run 'task.py back' then 'task.py advance' to re-verify.`);
+      errors.push(`source files changed after verification (${latestIso}). Run 'task.mjs back' then 'task.mjs advance' to re-verify.`);
     }
   } else {
     const testRequired = cfg.test_required !== undefined ? cfg.test_required : true;
     if (testRequired) {
-      errors.push("no machine verification record (verified_at missing); run 'task.py back' then 'task.py advance' to verify with tests");
+      errors.push("no machine verification record (verified_at missing); run 'task.mjs back' then 'task.mjs advance' to verify with tests");
     }
   }
   return errors;
@@ -522,7 +522,7 @@ function cmdAdvance(args) {
   }
   const state = taskState(t);
   if (state === "archived") { console.log("[vflow] Task already archived"); return 1; }
-  if (state === "verified") { console.log('[vflow] Next step is archival: run task.py done --summary "..."'); return 1; }
+  if (state === "verified") { console.log('[vflow] Next step is archival: run task.mjs done --summary "..."'); return 1; }
   const nxt = STATES[STATES.indexOf(state) + 1];
   const cfg = readJson(CONFIG, {});
 
@@ -599,7 +599,7 @@ function cmdStart(args) {
   const p = join(d, "task.json");
   const t = readJson(p);
   if (!isLegacy(t)) {
-    console.log("[vflow] v2 task: use task.py advance instead of start");
+    console.log("[vflow] v2 task: use task.mjs advance instead of start");
     return 1;
   }
   if (args.skip) {

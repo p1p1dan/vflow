@@ -1,7 +1,7 @@
 # vflow 安装说明
 
 > vflow：轻量级 AI 研发工作流（任务分级 + 档案留痕 + 规范驱动 + 测试硬规则）
-> 环境要求：Claude Code + Python 3.8+（Windows/Linux/macOS 均可）
+> 环境要求：Claude Code + Node.js 18+（Windows/Linux/macOS 均可）
 
 ## 安装步骤（装入一个项目约 3 分钟）
 
@@ -21,8 +21,8 @@
    ```
 5. **验证**：项目根目录运行
    ```
-   python .vflow/scripts/task.py status        # 应输出: [vflow] 无活动任务 (no_task)
-   python .vflow/scripts/inject.py session     # 应输出项目上下文+规范索引
+   node .vflow/scripts/task.mjs status        # 应输出: [vflow] 无活动任务 (no_task)
+   node .vflow/scripts/inject.mjs session     # 应输出项目上下文+规范索引
    ```
    然后开新 Claude Code 会话，确认能看到 `<vflow-context>` 注入。
 
@@ -44,7 +44,7 @@
 ├── templates/         # 产物模板（requirement/plan/verify/quick-entry）
 ├── tasks/             # 任务档案 + quick-log.md + archive/
 ├── journal/           # 开发者日志（gitignore）
-└── scripts/           # task.py（状态管理）+ inject.py（hook 注入）
+└── scripts/           # task.mjs（状态管理）+ inject.mjs（hook 注入）
 .claude/
 ├── settings.json      # hooks 注册
 ├── skills/            # vflow-task/quick/review/test/spec
@@ -53,6 +53,6 @@
 
 ## 故障排查
 
-- 看不到注入 → 确认 `python` 在 PATH 中；hooks 的 cwd 是项目根目录，脚本用相对路径
+- 看不到注入 → 确认 `node` 在 PATH 中；hooks 的 cwd 是项目根目录，脚本用相对路径
 - 中文乱码 → 脚本已强制 UTF-8 输出；确认规范文件均为 UTF-8 编码
-- 状态不对 → 状态只由 task.py 写入；手工修复可编辑当前任务的 task.json 或删除 `.vflow/.runtime/current-task`
+- 状态不对 → 状态只由 task.mjs 写入；手工修复可编辑当前任务的 task.json 或删除 `.vflow/.runtime/current-task`

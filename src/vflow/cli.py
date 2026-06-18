@@ -46,8 +46,9 @@ GLOBAL_SETTINGS = os.path.join(CLAUDE_HOME, "settings.json")
 
 MANAGED_VFLOW = [
     "workflow.md",
-    "scripts/task.py",
-    "scripts/inject.py",
+    "scripts/task.mjs",
+    "scripts/inject.mjs",
+    "scripts/collab.mjs",
     "templates/requirement.md",
     "templates/design.md",
     "templates/verify.md",
@@ -94,13 +95,13 @@ MIGRATED_AGENTS_SKILLS = [
 # 注入类 hook 兜底哲学（用户定调）：失败永不拦截输入，降级为一条注入提示，
 # 指挥 AI 用工具自查并向用户报告。控制流类 hook 不适用此模式。
 PROJECT_DEGRADED = ("<vflow-degraded>vflow inject hook failed. AI: run "
-                    "`python .vflow/scripts/inject.py %s` manually to diagnose "
-                    "(python missing? cwd? encoding?), report the cause to the user, "
+                    "`node .vflow/scripts/inject.mjs %s` manually to diagnose "
+                    "(node missing? cwd? encoding?), report the cause to the user, "
                     "then continue this turn.</vflow-degraded>")
 
 
 def project_hook_cmd(mode):
-    return ('cd "$CLAUDE_PROJECT_DIR" && python .vflow/scripts/inject.py %s '
+    return ('cd "$CLAUDE_PROJECT_DIR" && node .vflow/scripts/inject.mjs %s '
             "|| echo '%s'" % (mode, PROJECT_DEGRADED % mode))
 
 
@@ -304,7 +305,7 @@ def install_project_claude(dst_root):
         for e in entries:
             hs = e.get("hooks") or []
             kept = [h for h in hs
-                    if ".vflow/scripts/inject.py" not in str(h.get("command", ""))
+                    if ".vflow/scripts/inject" not in str(h.get("command", ""))
                     or h.get("command") == cmd]
             if len(kept) != len(hs):
                 e["hooks"] = kept
@@ -404,8 +405,8 @@ def clear_declined(dst):
 
 def smoke_test(dst_root):
     ok = True
-    for cmd in ([sys.executable, ".vflow/scripts/task.py", "status"],
-                [sys.executable, ".vflow/scripts/inject.py", "session"]):
+    for cmd in (["node", ".vflow/scripts/task.mjs", "status"],
+                ["node", ".vflow/scripts/inject.mjs", "session"]):
         r = subprocess.run(cmd, cwd=dst_root, capture_output=True, text=True,
                            encoding="utf-8", timeout=15)
         line = (r.stdout or r.stderr or "").strip().splitlines()
@@ -463,7 +464,7 @@ def do_status(dst):
     if not os.path.isdir(vf):
         print("[vflow] 项目未启用: %s" % dst)
         return 1
-    r = subprocess.run([sys.executable, ".vflow/scripts/task.py", "status"],
+    r = subprocess.run(["node", ".vflow/scripts/task.mjs", "status"],
                        cwd=dst, capture_output=True, text=True, encoding="utf-8")
     print((r.stdout or r.stderr).strip())
     return 0

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""vflow 测试公共夹具：按路径加载模板 task.py，并将其重定向到沙箱项目。"""
+"""vflow 测试公共夹具：加载模板 task.py（Python 参考实现）用于纯逻辑单元测试。
+部署版本为 task.mjs（Node.js），逻辑相同。"""
 import importlib.util
 import json
 import shutil

@@ -13,7 +13,7 @@ Read-only summary of vflow project state and history. Never modifies any files.
    ```bash
    node .vflow/scripts/task.mjs status
    ```
-   Fall back to `python .vflow/scripts/task.py status` if node unavailable.
+   Fall back to `node .vflow/scripts/task.mjs status` if first attempt fails.
 
 2. If active task exists: read task.json + list archive artifacts (requirement/design/worklog/verify — filled vs empty)
 

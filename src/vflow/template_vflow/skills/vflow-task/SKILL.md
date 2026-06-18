@@ -13,7 +13,7 @@ All decisions are recorded. All completions are machine-verified.
 created -> analyzed -> designed -> implementing -> verified -> archived
 ```
 
-State moves ONLY via `task.py advance` (mechanical checks) and `task.py done`.
+State moves ONLY via `task.mjs advance` (mechanical checks) and `task.mjs done`.
 
 ## Task Directory Path
 
@@ -39,25 +39,25 @@ The current task name is stored in `.vflow/.runtime/current-task`.
 ## Steps
 
 ### 1. Create Task [required·once]
-`python .vflow/scripts/task.py create <slug> --title "<title>"`
+`node .vflow/scripts/task.mjs create <slug> --title "<title>"`
 (slug: lowercase English with dashes, e.g. roundness-algo)
 
 ### 2. Requirement Analysis (created → analyzed) [required·once]
 - Execute vflow-brainstorm flow to discover requirements (auto-context → question gating → diverge/converge)
 - Fill requirement.md including **R-ID acceptance entries** (lines `- R<n>: ...`, typically 3-8, covering edge conditions). These are the mechanical anchors for the whole trace chain — make each one independently verifiable.
 - **Gate 1**: show the R-IDs, confirm requirement understanding with the user (AskUserQuestion preferred)
-- Run `python .vflow/scripts/task.py advance` (rejects if no R-ID is defined)
+- Run `node .vflow/scripts/task.mjs advance` (rejects if no R-ID is defined)
 
 ### 3. Design (analyzed → designed) [required·once]
 - Show the full draft in conversation (architecture impact, change list, ADR-lite decisions, **test plan**, spec manifest with reasons)
 - Fill design.md. Checklist items MUST carry trailing R-ID tags `(R1)` / `(R1,R3)`; every requirement R-ID must be covered or advance is rejected
-- If narrowing machine verification: declare in test plan + `task.py set test_scope "<command>"`
-- Risk: `python .vflow/scripts/task.py set risk {low|high}` (high = core_paths / >3 files / irreversible)
+- If narrowing machine verification: declare in test plan + `task.mjs set test_scope "<command>"`
+- Risk: `node .vflow/scripts/task.mjs set risk {low|high}` (high = core_paths / >3 files / irreversible)
 - **Gate 2 (high risk only)**: 🛑 STOP. Wait for user confirmation (ok/confirm/可以/行) before advancing
-- Run `python .vflow/scripts/task.py advance`
+- Run `node .vflow/scripts/task.mjs advance`
 
 ### 4. Implementation (designed → implementing) [required·repeatable]
-Run `python .vflow/scripts/task.py advance` (creates worklog.md), then:
+Run `node .vflow/scripts/task.mjs advance` (creates worklog.md), then:
 - Mirror the design.md checklist into Claude's task list (TaskCreate, one task per item); design.md is the source of truth
 - Before coding, read the spec files listed in design.md's spec manifest (关联规范)
 - Implement items one by one: check `[x]`, append a worklog.md row (`| time | file | change |`) — **log every changed file; the archive-time mtime cross-check depends on it**, mark the Claude task completed
@@ -67,8 +67,8 @@ Run `python .vflow/scripts/task.py advance` (creates worklog.md), then:
 
 ### 5. Machine Verification (implementing → verified) [required·once]
 - Fill verify.md §1: one result line per R-ID (`- R<n>: <interpretation>`), §2 integration (or 不适用 + reason)
-- Run `python .vflow/scripts/task.py advance`
-  - task.py EXECUTES the test command itself: exit≠0 → rejected with failure output; exit 0 → machine record appended to verify.md by the script
+- Run `node .vflow/scripts/task.mjs advance`
+  - task.mjs EXECUTES the test command itself: exit≠0 → rejected with failure output; exit 0 → machine record appended to verify.md by the script
   - Do NOT paste raw test output yourself; never edit the machine record
 - On failure: fix code, log files in worklog.md, advance again
 
@@ -76,9 +76,9 @@ Run `python .vflow/scripts/task.py advance` (creates worklog.md), then:
 - Quality check per vflow-review (**high-risk tasks must use independent review mode**: fresh-context sub-agent), fill review section of verify.md
 - Spec accumulation: new conventions/patterns/gotchas in worklog.md → vflow-spec flow (draft → user confirmation → write to spec/); nothing new → skip silently
 - **Gate 3**: 🛑 show the verify report (R-ID closure + machine record), wait for user confirmation
-- Run `python .vflow/scripts/task.py done --summary "<one-line outcome including new test count>"`
+- Run `node .vflow/scripts/task.mjs done --summary "<one-line outcome including new test count>"`
   - Validates R-ID closure in verify.md §1 and that no source file changed after machine verification (mtime cross-check)
-  - If code changed after verification: `task.py back` → re-advance
+  - If code changed after verification: `task.mjs back` → re-advance
 
 ## Output Templates
 

@@ -1,0 +1,8 @@
+{
+  "id": "06-18-npm-publish-prep",
+  "title": "提交修复并准备 npm 发布",
+  "tier": "T1",
+  "state": "implementing",
+  "risk": "low",
+  "created": "2026-06-18T15:33:10"
+}

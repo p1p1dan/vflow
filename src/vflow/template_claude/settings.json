@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .vflow/scripts/inject.py session"
+            "command": "node .vflow/scripts/inject.mjs session"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .vflow/scripts/inject.py prompt"
+            "command": "node .vflow/scripts/inject.mjs prompt"
           }
         ]
       }
