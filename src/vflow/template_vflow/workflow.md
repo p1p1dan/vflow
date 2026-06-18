@@ -71,6 +71,16 @@ the test hard rule still apply.
 [workflow-state:no_task]
 No active task. After receiving a user message, classify first, then act.
 
+### Team Awareness
+If a `<vflow-team>` block is present, team mode is active.
+Before creating a task, run `node .vflow/scripts/collab.mjs preflight --task <slug>` to check for conflicts.
+After creating a task, run `node .vflow/scripts/collab.mjs claim <slug>` to register ownership.
+
+### Followup Awareness
+If "Pending followup tasks" appears above, these are unfinished roadmap items from previous design tasks.
+When the user's request relates to a pending followup, create the implementation task for it.
+After the implementation task is archived, close the followup: `node .vflow/scripts/task.mjs followup close <source> <id>`.
+
 ### Classification [required·once]
 1. Classify and state explicitly using this fixed phrase:
    "📋 Tier: T{0|1|2} {Q&A|Quick|Standard} (reason: ...). {next action}"

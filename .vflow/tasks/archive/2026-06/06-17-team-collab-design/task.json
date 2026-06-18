@@ -10,5 +10,91 @@
     "2026-06-17T16:19:26"
   ],
   "verified_at": "2026-06-17T16:19:40",
-  "completed": "2026-06-17T16:19:56"
+  "completed": "2026-06-17T16:19:56",
+  "followup_tasks": [
+    {
+      "id": "P0.1",
+      "title": "collab.mjs（join/whoami/status/preflight/sync）",
+      "priority": "P0",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P0.2",
+      "title": "task.mjs 扩展（owner 字段 + per-uid current-task）",
+      "priority": "P0",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P0.3",
+      "title": "inject.mjs 扩展（vflow-team 注入 + heartbeat hook）",
+      "priority": "P0",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P1.1",
+      "title": "spec 三层加载",
+      "priority": "P1",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P1.2",
+      "title": "spec writeback staging + review",
+      "priority": "P1",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P1.3",
+      "title": "claim/release 命令",
+      "priority": "P1",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P1.4",
+      "title": "vflow-collab skill + onboard skill",
+      "priority": "P1",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P2.1",
+      "title": "通知适配器（钉钉/Slack）",
+      "priority": "P2",
+      "done": false,
+      "impl_task": null
+    },
+    {
+      "id": "P2.2",
+      "title": "命名空间守卫",
+      "priority": "P2",
+      "done": false,
+      "impl_task": null
+    },
+    {
+      "id": "P2.3",
+      "title": "vflow daily 自动汇总",
+      "priority": "P2",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P2.4",
+      "title": "archive 全文搜索",
+      "priority": "P2",
+      "done": true,
+      "impl_task": "06-18-06-17-team-collab-impl"
+    },
+    {
+      "id": "P2.5",
+      "title": "milestone 层",
+      "priority": "P2",
+      "done": false,
+      "impl_task": null
+    }
+  ]
 }

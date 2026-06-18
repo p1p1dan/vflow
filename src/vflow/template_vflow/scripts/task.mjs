@@ -16,11 +16,12 @@
 // Legacy tasks (status/phase fields, plan.md) are auto-mapped and archived
 // via the legacy validation path; they are not blocked.
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, statSync, unlinkSync, renameSync, rmSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync, statSync, unlinkSync, renameSync, rmSync, readdirSync, appendFileSync } from "node:fs";
 import { join, dirname, basename, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { hostname } from "node:os";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -119,9 +120,48 @@ function copyDirRecursive(src, dst) {
 
 // -- core helpers --
 
+function isTeamMode() {
+  const cfg = readJson(CONFIG, {});
+  return !!((cfg.team || {}).enabled);
+}
+
+function gitConfigValue(key) {
+  try {
+    const r = spawnSync("git", ["config", key], { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
+    return r.status === 0 ? (r.stdout || "").trim() : "";
+  } catch { return ""; }
+}
+
+function selfUid() {
+  const email = gitConfigValue("user.email");
+  if (!email) return null;
+  return email.split("@")[0].toLowerCase();
+}
+
+function pointerPath() {
+  if (isTeamMode()) {
+    const uid = selfUid();
+    if (uid) return join(RUNTIME, `current-task-${uid}`);
+  }
+  return POINTER;
+}
+
+function reportActivity(action, taskSlug, state) {
+  try {
+    if (!isTeamMode()) return;
+    const uid = selfUid();
+    if (!uid) return;
+    const activityPath = join(ROOT, "collab", "activity.jsonl");
+    mkdirSync(dirname(activityPath), { recursive: true });
+    const entry = { ts: isoNow(), user: uid, host: hostname(), action, task: taskSlug, state };
+    appendFileSync(activityPath, JSON.stringify(entry) + "\n", "utf-8");
+  } catch { /* fire-and-forget */ }
+}
+
 function currentTaskDir() {
-  if (!existsSync(POINTER)) return null;
-  const name = readText(POINTER).trim();
+  const ptr = pointerPath();
+  if (!existsSync(ptr)) return null;
+  const name = readText(ptr).trim();
   const d = join(TASKS, name);
   try {
     if (statSync(d).isDirectory()) return d;
@@ -422,14 +462,22 @@ function cmdCreate(args) {
     return 1;
   }
   mkdirSync(d, { recursive: true });
-  writeJson(join(d, "task.json"), {
+  const taskData = {
     id: name,
     title: args.title || args.slug,
     tier: args.tier,
     state: "created",
     risk: "unset",
     created: isoNow(),
-  });
+  };
+  if (isTeamMode()) {
+    const uid = selfUid();
+    if (uid) {
+      taskData.owner = uid;
+      taskData.claimed_at = isoNow();
+    }
+  }
+  writeJson(join(d, "task.json"), taskData);
   const tpl = join(ROOT, "templates");
   for (const f of ["requirement.md", "design.md", "verify.md"]) {
     const src = join(tpl, f);
@@ -445,7 +493,11 @@ function cmdCreate(args) {
     writeFileSync(join(d, "execution.log"), "", "utf-8");
   }
   mkdirSync(RUNTIME, { recursive: true });
-  writeFileSync(POINTER, name, "utf-8");
+  writeFileSync(pointerPath(), name, "utf-8");
+  if (isTeamMode() && pointerPath() !== POINTER) {
+    writeFileSync(POINTER, name, "utf-8");
+  }
+  reportActivity("create", name, "created");
   console.log(`[vflow] Created task ${name} (state=created)`);
   console.log("Pipeline: created -> analyzed -> designed -> implementing -> verified -> archived");
   return 0;
@@ -495,6 +547,7 @@ function cmdAdvance(args) {
     }
   }
   writeJson(p, t);
+  reportActivity("advance", basename(d), nxt);
   console.log(`[vflow] ${state} -> ${nxt}`);
   return 0;
 }
@@ -513,6 +566,7 @@ function cmdBack(_args) {
   if (!t.backs) t.backs = [];
   t.backs.push(isoNow());
   writeJson(p, t);
+  reportActivity("back", basename(d), "implementing");
   console.log("[vflow] verified -> implementing (re-verify required before archive)");
   return 0;
 }
@@ -629,6 +683,62 @@ function appendJournal(task, summary) {
   }
 }
 
+// -- followup extraction from design.md roadmap tables (R3) --
+
+const ROADMAP_HEADING = /^##\s+.*(?:路线图|[Rr]oadmap|实施|分阶段)/;
+const PRIORITY_RE = /P\d+/;
+
+function extractFollowupTasks(designText) {
+  const lines = designText.split("\n");
+  const items = [];
+  let inRoadmap = false;
+  let inTable = false;
+  let currentPriority = null;
+
+  for (const line of lines) {
+    const stripped = line.trim();
+    if (/^##\s/.test(stripped)) {
+      if (ROADMAP_HEADING.test(stripped)) {
+        inRoadmap = true;
+        inTable = false;
+        continue;
+      } else if (inRoadmap) {
+        break;
+      }
+    }
+    if (!inRoadmap) continue;
+
+    if (/^###\s/.test(stripped)) {
+      const pm = stripped.match(PRIORITY_RE);
+      currentPriority = pm ? pm[0] : currentPriority;
+      inTable = false;
+      continue;
+    }
+    if (stripped.startsWith("| :") || stripped.startsWith("|:") || stripped.startsWith("| ---")) {
+      inTable = true;
+      continue;
+    }
+    if (inTable && stripped.startsWith("|")) {
+      const cols = stripped.replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+      if (cols.length < 2) continue;
+      const id = cols[0].replace(/\*\*/g, "");
+      const title = cols[1].replace(/\*\*/g, "");
+      if (!id || !title || id === "#" || id === "序号") continue;
+      const rowPriority = (() => {
+        for (const c of cols) {
+          const m = c.match(PRIORITY_RE);
+          if (m) return m[0];
+        }
+        return currentPriority;
+      })();
+      items.push({ id, title, priority: rowPriority || "P0", done: false, impl_task: null });
+    } else if (inTable && !stripped.startsWith("|") && stripped !== "") {
+      inTable = false;
+    }
+  }
+  return items;
+}
+
 function _archiveMove(d, t, summary) {
   t.completed = isoNow();
   writeJson(join(d, "task.json"), t);
@@ -638,6 +748,9 @@ function _archiveMove(d, t, summary) {
   moveDir(d, dst);
   appendJournal(t, summary);
   if (existsSync(POINTER)) unlinkSync(POINTER);
+  const uidPtr = pointerPath();
+  if (uidPtr !== POINTER && existsSync(uidPtr)) unlinkSync(uidPtr);
+  reportActivity("done", basename(d), "archived");
   console.log(`[vflow] Task archived to ${relative(ROOT, dst)}`);
 }
 
@@ -690,6 +803,12 @@ function cmdDone(args) {
     }
   }
   t.state = "archived";
+  const dpText = readText(designPath(d));
+  const followups = extractFollowupTasks(dpText);
+  if (followups.length) {
+    t.followup_tasks = followups;
+    console.log(`[vflow] Extracted ${followups.length} followup tasks from design roadmap`);
+  }
   _archiveMove(d, t, args.summary || "");
   return 0;
 }
@@ -706,12 +825,81 @@ function cmdStatus(_args) {
   return 0;
 }
 
+// -- followup management (R4) --
+
+function scanFollowups() {
+  const archiveDir = join(TASKS, "archive");
+  if (!existsSync(archiveDir)) return [];
+  const results = [];
+  let monthDirs;
+  try { monthDirs = readdirSync(archiveDir).sort().reverse().slice(0, 2); } catch { return []; }
+  for (const month of monthDirs) {
+    const mdir = join(archiveDir, month);
+    let tasks;
+    try { tasks = readdirSync(mdir); } catch { continue; }
+    for (const tname of tasks) {
+      const tjPath = join(mdir, tname, "task.json");
+      const t = readJson(tjPath);
+      if (!t || !Array.isArray(t.followup_tasks)) continue;
+      const pending = t.followup_tasks.filter((f) => !f.done);
+      if (pending.length) {
+        results.push({ source: tname, path: tjPath, task: t, pending });
+      }
+    }
+  }
+  return results;
+}
+
+function cmdFollowup(args) {
+  if (args.sub === "list") {
+    const all = scanFollowups();
+    if (!all.length) {
+      console.log("[vflow] No pending followup tasks");
+      return 0;
+    }
+    for (const entry of all) {
+      console.log(`\n  Source: ${entry.source} (${entry.task.title})`);
+      for (const f of entry.pending) {
+        console.log(`    [${f.priority}] ${f.id}: ${f.title}`);
+      }
+    }
+    return 0;
+  }
+  if (args.sub === "close") {
+    if (!args.sourceTask || !args.itemId) {
+      console.log("Usage: task.mjs followup close <source-task-slug> <item-id> [--impl <impl-task-slug>]");
+      return 1;
+    }
+    const archiveDir = join(TASKS, "archive");
+    let found = false;
+    let monthDirs;
+    try { monthDirs = readdirSync(archiveDir).sort().reverse(); } catch { monthDirs = []; }
+    for (const month of monthDirs) {
+      const tjPath = join(archiveDir, month, args.sourceTask, "task.json");
+      const t = readJson(tjPath);
+      if (!t || !Array.isArray(t.followup_tasks)) continue;
+      const item = t.followup_tasks.find((f) => f.id === args.itemId);
+      if (!item) { console.log(`[vflow] Item ${args.itemId} not found in ${args.sourceTask}`); return 1; }
+      item.done = true;
+      item.impl_task = args.implTask || null;
+      writeJson(tjPath, t);
+      console.log(`[vflow] Followup ${args.itemId} closed in ${args.sourceTask}`);
+      found = true;
+      break;
+    }
+    if (!found) { console.log(`[vflow] Source task ${args.sourceTask} not found in archive`); return 1; }
+    return 0;
+  }
+  console.log("Usage: task.mjs followup <list|close>");
+  return 1;
+}
+
 // -- argv parsing --
 
 function parseArgs() {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
-    console.log("Usage: task.mjs <create|advance|back|set|start|done|status> [options]");
+    console.log("Usage: task.mjs <create|advance|back|set|start|done|status|followup> [options]");
     process.exit(1);
   }
   const cmd = argv[0];
@@ -762,6 +950,19 @@ function parseArgs() {
       return { cmd, summary: getOption(["--summary"], ""), force: getFlag(["--force"]) };
     case "status":
       return { cmd };
+    case "followup": {
+      const sub = positional(0);
+      if (!sub || !["list", "close"].includes(sub)) {
+        console.log("Usage: task.mjs followup <list|close> [options]");
+        process.exit(1);
+      }
+      if (sub === "close") {
+        const sourceTask = positional(1);
+        const itemId = positional(2);
+        return { cmd, sub, sourceTask, itemId, implTask: getOption(["--impl"], "") };
+      }
+      return { cmd, sub };
+    }
     default:
       console.log(`Unknown command: ${cmd}`);
       process.exit(1);
@@ -780,6 +981,7 @@ function main() {
     start: cmdStart,
     done: cmdDone,
     status: cmdStatus,
+    followup: cmdFollowup,
   };
   return handlers[args.cmd](args);
 }

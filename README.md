@@ -1,6 +1,6 @@
 # vflow
 
-轻量级 AI 研发工作流（Claude Code）：任务分级 + 档案留痕 + 规范驱动 + 测试硬规则。
+轻量级 AI 研发工作流（Claude Code）：任务分级 + 档案留痕 + 规范驱动 + 测试硬规则 + 团队协同。
 
 > 本仓库只包含通用工作流框架与基础规范模板。项目个性化的规范回写、任务档案随各项目自己的 git 管理，不回流本仓库。
 
@@ -53,6 +53,40 @@ vflow init .
 | `/vflow:init` | 启用项目 + AI 探测配置（构建系统/core_paths/特性） |
 | `/vflow:commit` | 智能提交：分类改动→中文提交信息→一次确认 |
 | `/vflow:context` | 状态总览：当前任务/档案/历史/日志 |
+| `/vflow:collab` | 团队协同：join/status/sync/claim/release |
+
+## 团队协同（v0.8.0+）
+
+基于 Git 的零基础设施团队协同，advisory 模式（警告不阻塞）：
+
+```bash
+# 启用团队模式
+node .vflow/scripts/collab.mjs join
+
+# 查看团队状态
+node .vflow/scripts/collab.mjs status
+
+# 冲突预检
+node .vflow/scripts/collab.mjs preflight --task <slug>
+
+# 一键同步
+node .vflow/scripts/collab.mjs sync
+
+# 认领/释放任务
+node .vflow/scripts/collab.mjs claim <slug>
+node .vflow/scripts/collab.mjs release <slug>
+
+# archive 全文搜索
+node .vflow/scripts/collab.mjs search <关键词>
+```
+
+**核心特性**：
+- Git email 身份派生（零注册）
+- JSONL 活动日志 + union merge（无冲突）
+- per-uid 任务指针（多人并行不干扰）
+- Spec 三层加载（项目级 → 团队级 → 个人级）
+- Spec writeback 走 staging → review 流程
+- 非团队模式完全不受影响（向后兼容）
 
 ## 架构（混合式：项目为主，全局为辅）
 

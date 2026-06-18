@@ -1,0 +1,11 @@
+{
+  "id": "06-18-06-17-team-collab-impl",
+  "title": "实施 maestro-flow 团队协同完整方案（P0+P1+P2）",
+  "tier": "T2",
+  "state": "archived",
+  "risk": "high",
+  "created": "2026-06-18T09:14:04",
+  "test_scope": "pytest tests/test_collab.py tests/test_team_task.py tests/test_team_inject.py tests/test_followup.py -v",
+  "verified_at": "2026-06-18T10:27:35",
+  "completed": "2026-06-18T10:41:09"
+}

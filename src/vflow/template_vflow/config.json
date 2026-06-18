@@ -17,5 +17,10 @@
     "notebook_path": null
   },
   "test_required": true,
-  "execution_log": false
+  "execution_log": false,
+  "team": {
+    "enabled": false,
+    "adapters": {},
+    "spec_review": true
+  }
 }

@@ -6,9 +6,10 @@
 //   node .vflow/scripts/inject.mjs session  # SessionStart: inject project context + spec index
 // Output to stdout is added to conversation context. Errors exit silently.
 
-import { readFileSync, existsSync } from "fs";
-import { dirname, join, resolve } from "path";
+import { readFileSync, existsSync, readdirSync } from "fs";
+import { dirname, join, resolve, basename } from "path";
 import { fileURLToPath } from "url";
+import { spawnSync } from "child_process";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -18,6 +19,11 @@ const POINTER = join(ROOT, ".runtime", "current-task");
 const WORKFLOW = join(ROOT, "workflow.md");
 const SPEC_INDEX = join(ROOT, "spec", "index.md");
 const CONFIG = join(ROOT, "config.json");
+const TASKS = join(ROOT, "tasks");
+const COLLAB = join(ROOT, "collab");
+const ACTIVITY = join(COLLAB, "activity.jsonl");
+const MEMBERS = join(COLLAB, "members");
+const TEAM_SPECS = join(COLLAB, "specs");
 
 const PIPELINE = ["created", "analyzed", "designed", "implementing", "verified", "archived"];
 
@@ -63,6 +69,41 @@ function readJson(path, fallback = null) {
   } catch {
     return fallback;
   }
+}
+
+function scanPendingFollowups() {
+  const archiveDir = join(TASKS, "archive");
+  if (!existsSync(archiveDir)) return [];
+  const results = [];
+  let monthDirs;
+  try { monthDirs = readdirSync(archiveDir).sort().reverse().slice(0, 2); } catch { return []; }
+  for (const month of monthDirs) {
+    const mdir = join(archiveDir, month);
+    let tasks;
+    try { tasks = readdirSync(mdir); } catch { continue; }
+    for (const tname of tasks) {
+      const t = readJson(join(mdir, tname, "task.json"));
+      if (!t || !Array.isArray(t.followup_tasks)) continue;
+      const pending = t.followup_tasks.filter((f) => !f.done);
+      if (pending.length) {
+        results.push({ source: tname, title: t.title, pending });
+      }
+    }
+  }
+  return results;
+}
+
+function formatFollowupBlock(followups) {
+  if (!followups.length) return "";
+  const lines = ["", "Pending followup tasks (from archived design):"];
+  for (const entry of followups) {
+    for (const f of entry.pending) {
+      lines.push(`- [${f.priority}] ${f.id}: ${f.title} (source: ${entry.source})`);
+    }
+  }
+  lines.push("When user wants to start one, create a new task with `task.mjs create`.");
+  lines.push("After task is archived, close the followup: `task.mjs followup close <source> <id>`.");
+  return lines.join("\n");
 }
 
 function taskState(t) {
@@ -181,6 +222,117 @@ function pipelineLine(state) {
   return PIPELINE.map((s) => (s === state ? `[${s}]` : s)).join(" -> ");
 }
 
+// -- team context --
+
+function isTeamMode(cfg) {
+  return !!((cfg.team || {}).enabled);
+}
+
+function gitConfigValue(key) {
+  try {
+    const r = spawnSync("git", ["config", key], { encoding: "utf-8", timeout: 5000, stdio: ["pipe", "pipe", "pipe"] });
+    return r.status === 0 ? (r.stdout || "").trim() : "";
+  } catch { return ""; }
+}
+
+function selfUid() {
+  const email = gitConfigValue("user.email");
+  if (!email) return null;
+  return email.split("@")[0].toLowerCase();
+}
+
+function scanTeamActivity(windowMin = 30) {
+  if (!existsSync(ACTIVITY)) return [];
+  const text = read(ACTIVITY);
+  const lines = text.trim().split("\n").filter(Boolean);
+  const cutoff = new Date(Date.now() - windowMin * 60000).toISOString().replace("Z", "");
+  const entries = lines.slice(-500)
+    .map((l) => { try { return JSON.parse(l); } catch { return null; } })
+    .filter((e) => e && e.ts >= cutoff);
+  return entries;
+}
+
+function formatTeamBlock(cfg) {
+  if (!isTeamMode(cfg)) return "";
+  const entries = scanTeamActivity();
+  const byUser = {};
+  for (const e of entries) {
+    if (!byUser[e.user]) byUser[e.user] = [];
+    byUser[e.user].push(e);
+  }
+
+  const lines = ["", "<vflow-team>"];
+  if (Object.keys(byUser).length === 0) {
+    lines.push("No team activity in the last 30 minutes.");
+  } else {
+    lines.push("Active members (last 30 min):");
+    for (const [user, events] of Object.entries(byUser)) {
+      const latest = events[events.length - 1];
+      const ago = Math.round((Date.now() - new Date(latest.ts).getTime()) / 60000);
+      const taskInfo = latest.task ? ` ${latest.state || ""} ${latest.task}` : "";
+      lines.push(`- ${user}@${latest.host || "?"}:${taskInfo} (${latest.action} ${ago} min ago)`);
+    }
+  }
+
+  // check for staging items
+  if (existsSync(join(COLLAB, "staging"))) {
+    const stagingFiles = readdirSync(join(COLLAB, "staging")).filter((f) => f.endsWith(".md"));
+    if (stagingFiles.length) {
+      lines.push(`\nPending spec reviews: ${stagingFiles.length} staging file(s)`);
+    }
+  }
+
+  lines.push("</vflow-team>");
+  return lines.join("\n");
+}
+
+// -- spec three-layer loading (R4) --
+
+function loadSpecThreeLayers(entries, cfg) {
+  const uid = isTeamMode(cfg) ? selfUid() : null;
+  const results = [];
+
+  for (const [specFile, reason] of entries) {
+    let rel = specFile.trim().replace(/^\/+/, "");
+    if (rel.startsWith(".vflow/")) rel = rel.slice(7);
+    if (rel.startsWith("spec/")) rel = rel.slice(5);
+
+    // Layer 1: project-level baseline
+    let finalPath = join(ROOT, "spec", rel);
+    let layer = "project";
+
+    // Layer 2: team-level override
+    if (uid && isTeamMode(cfg)) {
+      const teamPath = join(TEAM_SPECS, rel);
+      if (existsSync(teamPath)) {
+        finalPath = teamPath;
+        layer = "team";
+      }
+    }
+
+    // Layer 3: personal override
+    if (uid && isTeamMode(cfg)) {
+      const personalPath = join(TEAM_SPECS, uid, rel);
+      if (existsSync(personalPath)) {
+        finalPath = personalPath;
+        layer = "personal";
+      }
+    }
+
+    if (!existsSync(finalPath)) {
+      finalPath = join(ROOT, rel);
+      if (!existsSync(finalPath)) continue;
+    }
+
+    const content = read(finalPath);
+    if (content.trim()) {
+      const layerNote = layer !== "project" ? ` [${layer} override]` : "";
+      results.push([specFile, reason + layerNote, content]);
+    }
+  }
+  return results;
+}
+
 function doPrompt() {
   const cfg = readJson(CONFIG, {});
   const { enabled } = readConfigFlags(cfg);
@@ -204,6 +356,11 @@ function doPrompt() {
 
   lines.push(block);
 
+  if (state === "no_task") {
+    const followupBlock = formatFollowupBlock(scanPendingFollowups());
+    if (followupBlock) lines.push(followupBlock);
+  }
+
   if (state === "implementing" && taskDir) {
     const items = uncheckedItems(taskDir);
     if (items.length) {
@@ -219,7 +376,7 @@ function doPrompt() {
   if (taskDir && ["analyzed", "designed", "implementing"].includes(state)) {
     const entries = specManifest(taskDir);
     if (entries.length) {
-      const specs = loadSpecContents(entries);
+      const specs = isTeamMode(cfg) ? loadSpecThreeLayers(entries, cfg) : loadSpecContents(entries);
       if (specs.length) {
         lines.push("");
         lines.push("--- Auto-loaded specs (from design doc spec manifest) ---");
@@ -232,6 +389,10 @@ function doPrompt() {
       }
     }
   }
+
+  // team context injection
+  const teamBlock = formatTeamBlock(cfg);
+  if (teamBlock) lines.push(teamBlock);
 
   if (cfg.execution_log) {
     lines.push("");
@@ -272,12 +433,22 @@ function doSession() {
     lines.push("Execution logging: enabled");
   }
 
+  if (isTeamMode(cfg)) {
+    lines.push(`Team mode: enabled`);
+    if (existsSync(MEMBERS)) {
+      const memberCount = readdirSync(MEMBERS).filter((f) => f.endsWith(".json")).length;
+      lines.push(`Team members: ${memberCount}`);
+    }
+  }
+
   const [state, task] = currentState();
   if (task) {
     lines.push(`Active task: ${task.id} (state=${state})`);
     lines.push(`Pipeline: ${pipelineLine(state)}`);
   } else {
     lines.push("No active task.");
+    const followupBlock = formatFollowupBlock(scanPendingFollowups());
+    if (followupBlock) lines.push(followupBlock);
   }
 
   lines.push("");
@@ -289,6 +460,9 @@ function doSession() {
     lines.push("--- Spec index (read full spec files on demand, do not preload) ---");
     lines.push(idx);
   }
+
+  const teamBlock = formatTeamBlock(cfg);
+  if (teamBlock) lines.push(teamBlock);
 
   lines.push("</vflow-context>");
   process.stdout.write(lines.join("\n") + "\n");

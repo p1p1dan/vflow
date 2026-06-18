@@ -21,6 +21,11 @@ git log --oneline -10
 node .vflow/scripts/task.mjs status
 ```
 
+If no active task, also check for pending followups:
+```bash
+node .vflow/scripts/task.mjs followup list
+```
+
 If node version unavailable, fall back to:
 ```bash
 python .vflow/scripts/task.py status
@@ -32,7 +37,8 @@ Based on task state, determine next action:
 
 | State | Next Action |
 | :--- | :--- |
-| No active task | Inform user, suggest starting with vflow-go |
+| No active task (no pending followups) | Inform user project is idle, suggest starting with vflow-go |
+| No active task (has pending followups) | Show pending followup tasks from `<vflow-context>` or `<vflow-state>` injection, suggest creating implementation task for the highest-priority item |
 | created | Requirement analysis — load vflow-brainstorm, fill requirement.md with R-IDs |
 | analyzed | Design phase — fill design.md (architecture, change list, checklist with R-ID tags) |
 | designed | Begin implementation — `task.mjs advance` to enter implementing, read spec manifest from design.md |
