@@ -1,0 +1,8 @@
+{
+  "id": "06-22-vflow-v2-refactor",
+  "title": "vflow v2 架构重构：任务链路连续执行 + spec 知识注入 + 文档合并精简",
+  "tier": "T2",
+  "state": "created",
+  "risk": "high",
+  "created": "2026-06-22T09:58:26"
+}

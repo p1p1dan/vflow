@@ -6,6 +6,12 @@ dist/
 # vflow
 .vflow/journal/
 .vflow/.runtime/
+.vflow/scripts/dist/
+.vflow/scripts/node_modules/
+
+# Claude Code 临时文件
+.claude/worktrees/
+docs/context-sessions/
 
 # npm pack 临时产物
 .tmp_pkg/

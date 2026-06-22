@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && node .vflow/scripts/inject.mjs session || echo '<vflow-degraded>vflow inject hook failed. AI: run `node .vflow/scripts/inject.mjs session` manually to diagnose (node missing? cwd? encoding?), report the cause to the user, then continue this turn.</vflow-degraded>'"
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && node .vflow/scripts/dist/inject.js session || echo '<vflow-degraded>vflow inject hook failed. AI: run `node .vflow/scripts/dist/inject.js session` manually to diagnose (node missing? cwd? encoding?), report the cause to the user, then continue this turn.</vflow-degraded>'"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd \"$CLAUDE_PROJECT_DIR\" && node .vflow/scripts/inject.mjs prompt || echo '<vflow-degraded>vflow inject hook failed. AI: run `node .vflow/scripts/inject.mjs prompt` manually to diagnose (node missing? cwd? encoding?), report the cause to the user, then continue this turn.</vflow-degraded>'"
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && node .vflow/scripts/dist/inject.js prompt || echo '<vflow-degraded>vflow inject hook failed. AI: run `node .vflow/scripts/dist/inject.js prompt` manually to diagnose (node missing? cwd? encoding?), report the cause to the user, then continue this turn.</vflow-degraded>'"
           }
         ]
       }

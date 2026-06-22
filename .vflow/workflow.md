@@ -1,29 +1,23 @@
 # vflow Workflow Definition
 
 > This file is the single semantic center of vflow: task classification rules,
-> per-state behavioral constraints, and approval gate rules are all defined here.
-> inject.mjs extracts the matching [workflow-state:*] block based on current task
+> per-state behavioral constraints, and execution modes are all defined here.
+> inject.ts extracts the matching [workflow-state:*] block based on current task
 > state and injects it into each conversation turn.
 > To change workflow behavior, edit this file — no code changes needed.
 
-## Pipeline (v2)
-
-All tasks (T1 and T2) run the same 6-state pipeline. Tier only controls the
-*thickness* of each station's artifact and how often the human is consulted —
-never which stations are skipped.
+## Pipeline
 
 ```
 created -> analyzed -> designed -> implementing -> verified -> archived
-             |            |             |              |           |
-       requirement.md  design.md    worklog.md     verify.md   journal
-       (SWE.1, R-IDs)  (SWE.2/3)   (SWE.4 log)    (SWE.4/5/6) (+spec writeback)
 ```
 
-State moves ONLY via `node .vflow/scripts/task.mjs advance` (checks exit
-conditions mechanically) and `task.mjs done --summary "..."` (verified ->
-archived). `task.mjs back` returns verified -> implementing when code must
-change after verification. Bypasses (`advance --skip-check`, `done --force`)
-are recorded in task.json and visible in monthly audits.
+**v2 mode (task-spec.md)**: Tasks are driven by execution graphs (`.vflow/graphs/`).
+The graph coordinator (`coordinate.ts`) handles step sequencing — the AI follows
+the graph's command nodes instead of manual state management.
+
+**v1 mode (requirement.md + design.md)**: Legacy 6-state pipeline with per-state
+HARD STOPs. Task state moves via `node .vflow/scripts/dist/task.js advance`.
 
 ## Task Classification
 
@@ -60,9 +54,7 @@ ONLY these exact user phrases constitute a skip signal:
 - Confirmation: "go ahead", "就这样做", "可以开始了"
 - Scope refinement: "focus on XX first", "先做XX部分"
 
-When uncertain whether the user means to skip: ASK
-"Do you want to skip the planning phase and implement directly, or use this as an implementation strategy within the plan?"
-
+When uncertain whether the user means to skip: ASK.
 Even when skipping ceremony (`advance --skip-check`), spec/ conventions and
 the test hard rule still apply.
 
@@ -73,20 +65,20 @@ No active task. After receiving a user message, classify first, then act.
 
 ### Team Awareness
 If a `<vflow-team>` block is present, team mode is active.
-Before creating a task, run `node .vflow/scripts/collab.mjs preflight --task <slug>` to check for conflicts.
-After creating a task, run `node .vflow/scripts/collab.mjs claim <slug>` to register ownership.
+Before creating a task, run `node .vflow/scripts/dist/collab.js preflight --task <slug>` to check for conflicts.
+After creating a task, run `node .vflow/scripts/dist/collab.js claim <slug>` to register ownership.
 
 ### Followup Awareness
 If "Pending followup tasks" appears above, these are unfinished roadmap items from previous design tasks.
 When the user's request relates to a pending followup, create the implementation task for it.
-After the implementation task is archived, close the followup: `node .vflow/scripts/task.mjs followup close <source> <id>`.
+After the implementation task is archived, close the followup: `node .vflow/scripts/dist/task.js followup close <source> <id>`.
 
 ### Classification [required·once]
 1. Classify and state explicitly using this fixed phrase:
    "📋 Tier: T{0|1|2} {Q&A|Quick|Standard} (reason: ...). {next action}"
 2. T0 Q&A → answer directly, no archive, no tier output (pure Q&A, don't interrupt)
-3. T1 Quick → output tier statement → run `node .vflow/scripts/task.mjs create <slug> --title "<title>" --tier T1` → execute per .vflow/skills/vflow-quick/SKILL.md (thin-archive mode, advance autonomously)
-4. T2 Standard → output tier statement → run `node .vflow/scripts/task.mjs create <slug> --title "<title>"` → execute per .vflow/skills/vflow-task/SKILL.md
+3. T1 Quick → output tier statement → run `node .vflow/scripts/dist/task.js create <slug> --title "<title>" --tier T1` → execute per .vflow/skills/vflow-quick/SKILL.md
+4. T2 Standard → output tier statement → run `node .vflow/scripts/dist/task.js create <slug> --title "<title>"` → execute per .vflow/skills/vflow-task/SKILL.md
 
 ### Override and Correction
 - When the user specifies a tier via /vflow:task or /vflow:quick, obey — do not re-classify
@@ -99,92 +91,77 @@ After the implementation task is archived, close the followup: `node .vflow/scri
 [/workflow-state:no_task]
 
 [workflow-state:created]
-⛔ HARD STOP — You are in state "created". No design, no code changes, no implementation allowed.
-The ONLY way forward is to complete requirement analysis and run `node .vflow/scripts/task.mjs advance`.
-
-Task created. Current station: requirement analysis (SWE.1).
+Task created. Fill task-spec.md §1 (requirements) and §2 (R-ID acceptance entries).
 
 ### Requirement Analysis [required·once]
-1. T2: execute vflow-brainstorm flow (auto-context → gated questions, one at a time, AskUserQuestion preferred → converge). T1: skip questioning if intent is clear.
-2. Fill requirement.md: original request, clarifications, and **R-ID acceptance entries** (lines `- R<n>: ...`). T1: 1-2 R-IDs. T2: 3-8 R-IDs covering edge conditions.
+1. T2: explore context, ask gated questions (one at a time, AskUserQuestion preferred), converge. T1: skip questioning if intent is clear.
+2. Fill task-spec.md §1 (original request) and §2 (R-ID acceptance entries: `- R<n>: ...`). T1: 1-2 R-IDs. T2: 3-8 R-IDs covering edge conditions.
 3. Gate 1 (T2 only): show R-IDs, ask user to confirm requirement understanding (AskUserQuestion).
-4. Run `node .vflow/scripts/task.mjs advance` (validates requirement.md is filled and defines at least one R-ID).
+4. Run `node .vflow/scripts/dist/task.js advance` (validates task-spec.md §2 has at least one R-ID).
 
 ### Prohibited
 - Writing ANY code (production or test) in this state
-- Writing design documents in this state
-- Advancing with placeholder R-IDs (e.g. "- R1: make it work")
-- Skipping requirement.md and jumping to design or implementation
+- Advancing with placeholder R-IDs
 [/workflow-state:created]
 
 [workflow-state:analyzed]
-⛔ HARD STOP — You are in state "analyzed". No implementation code allowed yet.
-Complete the design phase and run `node .vflow/scripts/task.mjs advance` before writing any code.
-
-Requirement confirmed. Current station: design (SWE.2 architecture + SWE.3 detailed design).
+Requirement confirmed. Fill task-spec.md §3-§6 (design + task checklist).
 
 ### Design [required·once]
-1. Draft the design in conversation first: architecture impact (one line if none), change list, ADR-lite decisions (T1 may omit), **test plan**, spec manifest (which spec/ files to read, with reasons).
-2. Fill design.md. The task checklist items MUST carry trailing R-ID tags: `- [ ] 1.1 ... (R1)` or `(R1,R3)`. Every R-ID from requirement.md must be covered — advance is mechanically rejected otherwise.
-3. If narrowing machine verification scope, declare it in the test plan and run `task.mjs set test_scope "<command>"`.
-4. Set risk: `node .vflow/scripts/task.mjs set risk {low|high}`
-5. Gate 2 (high risk only): 🛑 STOP. Show the design, wait for user confirmation (reply ok/confirm/可以/行) before advancing.
-6. Run `node .vflow/scripts/task.mjs advance` (validates design.md filled + R-ID coverage).
+1. Fill task-spec.md: §3 design, §4 change list, §5 spec manifest, §6 task checklist.
+2. Checklist items MUST carry trailing R-ID tags: `- [ ] 1.1 ... (R1)`. Every R-ID from §2 must be covered.
+3. Set risk: `node .vflow/scripts/dist/task.js set risk {low|high}`
+4. Gate 2 (high risk only): show design, wait for user confirmation before advancing.
+5. Run `node .vflow/scripts/dist/task.js advance` (validates checklist + R-ID coverage).
 
 ### Prohibited
-- Writing implementation code in this state (high risk: not before user confirmation)
+- Writing implementation code in this state
 - Checklist items without R-ID tags
-- Copying injected <vflow-state>/<vflow-context> content into deliverable files
 [/workflow-state:analyzed]
 
 [workflow-state:designed]
-Design confirmed. Run `node .vflow/scripts/task.mjs advance` to enter implementation (creates worklog.md), then implement.
+Design confirmed. Run `node .vflow/scripts/dist/task.js advance` to enter implementation.
 [/workflow-state:designed]
 
 [workflow-state:implementing]
-Current station: implementation (SWE.4). Implement checklist items one by one.
+Implementation phase. Follow task-spec.md §6 checklist.
 
 ### Implementation [required·repeatable]
-1. Before coding, read the spec files listed in design.md's spec manifest (关联规范); if missing, select .vflow/spec/ files by topic (filter modules by config.json features)
-2. Implement items from design.md checklist one by one: check `[x]` after each, append a row to worklog.md (`| time | file | change |` — **every changed file must be logged; the mtime cross-check at archive depends on it**)
-3. Mirror the checklist into Claude's task list (TaskCreate) right after entering this state; mark tasks completed (TaskUpdate) as you check items. design.md is the source of truth. On cross-session resume, continue from the first unchecked item.
+1. Read spec files listed in task-spec.md §5 (spec manifest).
+2. Implement items from §6 one by one: check `[x]` after each, append to ledger.md §1.
+3. On cross-session resume, continue from the first unchecked item in §6.
 
-### Scope Change Handling [required·continuous]
-If the user changes scope during implementation:
-- Update requirement.md R-IDs and design.md checklist BEFORE implementing the change (sync Claude task list)
-- Note the scope change in worklog.md
+### Scope Change Handling
+If the user changes scope: update task-spec.md §2 and §6 BEFORE implementing the change.
 
-### Test Hard Rule [required·continuous]
+### Test Hard Rule
 (Default: enabled. Exempt when config.json test_required=false)
-4. No test directory → create scaffold first per .vflow/skills/vflow-test/SKILL.md (this is REQUIRED: machine verification needs a runnable test_command)
-5. New class / public interface → write test cases (happy path + edge cases)
+- No test directory → create scaffold first
+- New class / public interface → write test cases
 
 ### Verification [required·once]
-6. When all checklist items are checked, fill verify.md §1 (one `- R<n>: ...` result line per R-ID), §2 integration (or "不适用" + reason), then run `node .vflow/scripts/task.mjs advance`
-   - task.mjs will EXECUTE config.build.test_command itself (or task.json test_scope): exit≠0 → transition rejected with failure output; exit 0 → machine record appended to verify.md by the script
-   - Do NOT paste test output yourself — the machine record is authoritative
-7. If tests fail: fix code, log files in worklog.md, advance again
+When all checklist items are checked:
+1. Fill ledger.md §4 (one `- R<n>: ...` result per R-ID).
+2. Run `node .vflow/scripts/dist/task.js advance` — script executes tests mechanically.
+3. If tests fail: fix code, log in ledger.md §1, advance again.
 
 ### Prohibited
-- Skipping test hard rule (exempt only: pure comment/doc changes, or config.test_required=false)
-- Editing the machine execution record in verify.md
-- Deviating from the confirmed design without informing the user
+- Skipping test hard rule
+- Editing the machine execution record in ledger.md §5
 [/workflow-state:implementing]
 
 [workflow-state:verified]
-Machine verification passed. Current station: review and archive.
+Machine verification passed. Review and archive.
 
 ### Quality Review [required·once]
-1. Run quality check per .vflow/skills/vflow-review/SKILL.md (**high-risk tasks must use independent review mode**: fresh-context sub-agent), fill the review section of verify.md
-2. Spec accumulation: review worklog.md for new conventions/patterns/gotchas → if found, trigger vflow-spec flow (draft → user confirmation → write to spec/)
+1. Spec accumulation: review ledger.md §1 for new conventions → if found, write to spec/.
+2. Fill ledger.md §3 (design writeback) if implementation diverged from original design.
 
 ### Gate 3 [required·once]
-3. T2: 🛑 show the verify report (R-ID closure + machine record summary), wait for user confirmation. T1: skip, report one line after archive.
+T2: show verify report (R-ID closure + test summary), wait for user confirmation. T1: skip.
 
 ### Archive [required·once]
-4. Run `node .vflow/scripts/task.mjs done --summary "<one-line outcome including new test count>"`
-   - Validates: every R-ID has a result entry in verify.md §1; source files unchanged since machine verification (mtime cross-check)
-   - If code changed after verification: `task.mjs back` → re-advance (re-runs tests)
+Run `node .vflow/scripts/dist/task.js done --summary "<one-line outcome>"`
 
 ### Prohibited
 - Archiving without showing the verify report (T2)
