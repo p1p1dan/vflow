@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""inject.mjs team injection + spec three-layer loading tests."""
+"""inject.ts team injection + spec three-layer loading tests."""
 import json
 import os
 import shutil
@@ -13,12 +13,11 @@ TEMPLATE_VFLOW = REPO / "src" / "vflow" / "template_vflow"
 
 
 def _setup_inject_env(tmp_path, team_enabled=False, with_activity=False, with_task=False):
-    """Create .vflow structure for inject.mjs team testing."""
+    """Create .vflow structure for inject team testing."""
     vflow = tmp_path / ".vflow"
     scripts = vflow / "scripts"
     scripts.mkdir(parents=True)
-    for f in ("inject.mjs", "task.mjs", "collab.mjs"):
-        shutil.copy2(str(TEMPLATE_VFLOW / "scripts" / f), str(scripts / f))
+    shutil.copytree(str(TEMPLATE_VFLOW / "scripts" / "dist"), str(scripts / "dist"))
 
     tpl = vflow / "templates"
     tpl.mkdir(parents=True)
@@ -76,7 +75,7 @@ def _setup_inject_env(tmp_path, team_enabled=False, with_activity=False, with_ta
 
 
 def _run_inject(tmp_path, mode):
-    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "inject.mjs"), mode]
+    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "dist" / "inject.js"), mode]
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=str(tmp_path))
 
 

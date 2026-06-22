@@ -1,14 +1,13 @@
 ---
 name: vflow-quick
-description: "vflow quick task (T1) flow: single-file small changes, low-risk tasks executed through the same 6-state pipeline with thin artifacts. Use when task is classified as T1 or user invokes /vflow:quick."
+description: "vflow quick task (T1): single-file small changes with thin artifacts. AI advances autonomously, reports once at the end."
 ---
 
-# vflow Quick Task Flow (Thin-Archive Mode)
+# vflow Quick Task Flow
 
-T1 tasks run the SAME 6-state pipeline as T2 — only the artifacts are thin
-(one or two lines per section) and there are NO human gates. The AI advances
-autonomously and reports once at the end. Uniform archive format is the point:
-any audited task looks structurally identical.
+T1 tasks run the same pipeline as T2 — only the artifacts are thin (one or two
+lines per section) and there are NO human gates. The AI advances autonomously
+and reports once at the end.
 
 ## Input Contract
 
@@ -18,30 +17,36 @@ any audited task looks structurally identical.
 ## Steps
 
 ### 1. Create [required·once]
-`node .vflow/scripts/task.mjs create <slug> --title "<title>" --tier T1`
+`node .vflow/scripts/dist/task.js create <slug> --title "<title>" --tier T1`
 
 ### 2. Requirement (created → analyzed) [required·once]
-Fill requirement.md thin: original request one line, skip clarification table if intent is clear, **1-2 R-IDs** (`- R1: ...`). Then `task.mjs advance`.
+Fill task-spec.md §1 (one line), §2 (**1-2 R-IDs**). Then `node .vflow/scripts/dist/task.js advance`.
 
 ### 3. Design (analyzed → designed) [required·once]
-Fill design.md thin: "无架构影响" if so, change list 1-2 rows, checklist 1-3 items **each tagged (R<n>)**, test plan one row. Optionally `task.mjs set test_scope "<narrow command>"` if full suite is too heavy (declare in test plan). Then `task.mjs set risk low` and `task.mjs advance`.
+Fill task-spec.md §3 (one line), §4 (1-2 rows), §6 (1-3 items **each tagged (R<n>)**).
+Set risk: `node .vflow/scripts/dist/task.js set risk low`. Then advance.
 
 ### 4. Implement (designed → implementing → verified) [required·once]
-`task.mjs advance` to enter implementing. Code the change. Log every changed file in worklog.md.
-Test hard rule (exempt when config.test_required=false): logic change → update/add test case; pure comment/doc change → note exemption in worklog.
-Fill verify.md §1 (one `- R<n>: ...` line per R-ID), §2 "不适用" + reason if applicable. Then `task.mjs advance` — task.mjs executes the test command itself and appends the machine record. If it fails, fix and advance again.
+Advance to enter implementing. Code the change. Log in ledger.md §1.
+Fill ledger.md §4 (one `- R<n>: ...` per R-ID). Then advance — script runs tests.
 
 ### 5. Archive (verified → archived) [required·once]
-`node .vflow/scripts/task.mjs done --summary "<one-liner>"`
-Optionally add one index line to `.vflow/tasks/quick-log.md` pointing to the archived directory.
+`node .vflow/scripts/dist/task.js done --summary "<one-liner>"`
+
+## Alternative: Quick Log Only
+
+For truly trivial changes (typo, comment, single-line fix):
+```bash
+# Just do the change, commit, and log
+node .vflow/scripts/dist/task.js quick-log --title "fix typo in README" --files "README.md"
+```
 
 ## Output Template
 
-After completion (single report, no mid-flow interruptions):
-"⚡ Quick task done: {change summary}. Archived: tasks/archive/YYYY-MM/{id}/. Machine verification: {exit 0, N tests passed}"
+"⚡ Quick task done: {summary}. Archived: tasks/archive/YYYY-MM/{id}/. Machine verification: {result}"
 
 ## Guardrails
 
-- If during implementation the change exceeds T1 scope (>3 files or touches core_paths) → stop and state "Task exceeds T1 scope, recommend upgrading to standard task", ask the user
-- Machine verification must not be skipped even for quick tasks (test_required=false is the only exemption)
-- Do not ask the user gate questions for T1 — autonomy is the contract; escalate only on scope breach or genuine ambiguity
+- If change exceeds T1 scope (>3 files or core_paths) → stop, recommend upgrade to T2
+- Machine verification must not be skipped (test_required=false is the only exemption)
+- Do not ask gate questions for T1 — autonomy is the contract

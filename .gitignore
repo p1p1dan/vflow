@@ -3,6 +3,10 @@ __pycache__/
 build/
 dist/
 
+# Allow template dist (shipped in npm package)
+!src/vflow/template_vflow/scripts/dist/
+!src/vflow/template_vflow/scripts/dist/**
+
 # vflow
 .vflow/journal/
 .vflow/.runtime/

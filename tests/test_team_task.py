@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""task.mjs team extension tests: owner on create, per-uid pointer, activity reporting."""
+"""task.ts team extension tests: owner on create, per-uid pointer, activity reporting."""
 import json
 import os
 import shutil
@@ -13,12 +13,11 @@ TEMPLATE_VFLOW = REPO / "src" / "vflow" / "template_vflow"
 
 
 def _setup_team_task_env(tmp_path, team_enabled=True):
-    """Create minimal .vflow structure with team mode for task.mjs testing."""
+    """Create minimal .vflow structure with team mode for task testing."""
     vflow = tmp_path / ".vflow"
     scripts = vflow / "scripts"
     scripts.mkdir(parents=True)
-    for f in ("task.mjs", "inject.mjs", "collab.mjs"):
-        shutil.copy2(str(TEMPLATE_VFLOW / "scripts" / f), str(scripts / f))
+    shutil.copytree(str(TEMPLATE_VFLOW / "scripts" / "dist"), str(scripts / "dist"))
 
     tpl = vflow / "templates"
     tpl.mkdir(parents=True)
@@ -50,7 +49,7 @@ def _setup_team_task_env(tmp_path, team_enabled=True):
 
 
 def _run_task(tmp_path, *args):
-    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "task.mjs")] + list(args)
+    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "dist" / "task.js")] + list(args)
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=str(tmp_path))
 
 

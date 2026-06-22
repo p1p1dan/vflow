@@ -25,8 +25,16 @@ const GLOBAL_SETTINGS = path.join(CLAUDE_HOME, 'settings.json');
 
 const MANAGED_VFLOW = [
   'workflow.md',
-  'scripts/task.mjs',
-  'scripts/inject.mjs',
+  'knowledge.md',
+  'scripts/tsconfig.json',
+  'scripts/package.json',
+  'scripts/task.ts',
+  'scripts/coordinate.ts',
+  'scripts/inject.ts',
+  'scripts/collab.ts',
+  'templates/task-spec.md',
+  'templates/ledger.md',
+  'templates/context.md',
   'templates/requirement.md',
   'templates/design.md',
   'templates/verify.md',
@@ -35,7 +43,23 @@ const MANAGED_VFLOW = [
   'skills/vflow-quick/SKILL.md',
 ];
 
-const COPY_IF_ABSENT_VFLOW = ['config.json', 'tasks/quick-log.md'];
+// Directories synced wholesale on install/update (copytreeSync)
+const MANAGED_DIRS = [
+  'scripts/lib',
+  'scripts/dist',
+  'graphs',
+];
+
+// v0.9: old .mjs scripts replaced by TypeScript + dist/
+const MIGRATED_SCRIPTS = [
+  'scripts/task.mjs',
+  'scripts/inject.mjs',
+  'scripts/collab.mjs',
+  'scripts/inject.py',
+  'scripts/task.py',
+];
+
+const COPY_IF_ABSENT_VFLOW = ['config.json', 'tasks/quick-log.md', 'knowledge.md'];
 
 const MANAGED_AGENTS = [
   'skills/vflow-go/SKILL.md',
@@ -74,12 +98,12 @@ const MIGRATED_AGENTS_SKILLS = [
 
 const PROJECT_DEGRADED = (mode) =>
   `<vflow-degraded>vflow inject hook failed. AI: run ` +
-  `\`node .vflow/scripts/inject.mjs ${mode}\` manually to diagnose ` +
+  `\`node .vflow/scripts/dist/inject.js ${mode}\` manually to diagnose ` +
   `(node missing? cwd? encoding?), report the cause to the user, ` +
   `then continue this turn.</vflow-degraded>`;
 
 function projectHookCmd(mode) {
-  return `cd "$CLAUDE_PROJECT_DIR" && node .vflow/scripts/inject.mjs ${mode} || echo '${PROJECT_DEGRADED(mode)}'`;
+  return `cd "$CLAUDE_PROJECT_DIR" && node .vflow/scripts/dist/inject.js ${mode} || echo '${PROJECT_DEGRADED(mode)}'`;
 }
 
 const PROJECT_HOOKS = {
@@ -88,7 +112,7 @@ const PROJECT_HOOKS = {
 };
 
 const GLOBAL_COMMANDS = ['init.md'];
-const GITIGNORE_LINES = ['.vflow/journal/', '.vflow/.runtime/'];
+const GITIGNORE_LINES = ['.vflow/journal/', '.vflow/.runtime/', '.vflow/scripts/dist/', '.vflow/scripts/node_modules/'];
 
 const CLAUDE_MD_MARKER_START = '<!-- vflow:authority:start -->';
 const CLAUDE_MD_MARKER_END = '<!-- vflow:authority:end -->';
@@ -444,8 +468,8 @@ function clearDeclined(dst) {
 function smokeTest(dstRoot) {
   let ok = true;
   const tests = [
-    ['node', '.vflow/scripts/task.mjs', 'status'],
-    ['node', '.vflow/scripts/inject.mjs', 'session'],
+    ['node', '.vflow/scripts/dist/task.js', 'status'],
+    ['node', '.vflow/scripts/dist/inject.js', 'session'],
   ];
   for (const cmd of tests) {
     const r = spawnSync(cmd[0], cmd.slice(1), {
@@ -471,6 +495,32 @@ async function doInstall(dst, { update = false, spec = false, yes = false, defer
   }
   for (const rel of COPY_IF_ABSENT_VFLOW) {
     copyOne(SRC_VFLOW, rel, path.join(dst, '.vflow'), false);
+  }
+
+  // v0.9: sync managed directories (lib, dist, graphs)
+  for (const rel of MANAGED_DIRS) {
+    const src = path.join(SRC_VFLOW, rel);
+    const dst2 = path.join(dst, '.vflow', rel);
+    if (fs.existsSync(src)) {
+      if (fs.existsSync(dst2)) fs.rmSync(dst2, { recursive: true, force: true });
+      copytreeSync(src, dst2);
+      console.log(`  [同步] .vflow/${rel}/`);
+    }
+  }
+
+  // v0.9: clean old .mjs/.py scripts replaced by TypeScript
+  for (const rel of MIGRATED_SCRIPTS) {
+    const old = path.join(dst, '.vflow', rel);
+    if (fs.existsSync(old)) {
+      fs.unlinkSync(old);
+      console.log(`  [cleanup] .vflow/${rel} (replaced by TypeScript)`);
+    }
+  }
+  // clean __pycache__ if present
+  const pycache = path.join(dst, '.vflow', 'scripts', '__pycache__');
+  if (fs.existsSync(pycache)) {
+    fs.rmSync(pycache, { recursive: true, force: true });
+    console.log('  [cleanup] .vflow/scripts/__pycache__/');
   }
 
   const staleTpl = path.join(dst, '.vflow', 'templates', 'plan.md');
@@ -526,7 +576,7 @@ function doStatus(dst) {
     console.log(`[vflow] 项目未启用: ${dst}`);
     return 1;
   }
-  const r = spawnSync('node', ['.vflow/scripts/task.mjs', 'status'], {
+  const r = spawnSync('node', ['.vflow/scripts/dist/task.js', 'status'], {
     cwd: dst,
     encoding: 'utf-8',
     stdio: ['ignore', 'pipe', 'pipe'],

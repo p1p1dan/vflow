@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""collab.mjs command tests: join, whoami, status, preflight, sync, claim, release, search."""
+"""collab.ts command tests: join, whoami, status, preflight, sync, claim, release, search."""
 import json
 import os
 import shutil
@@ -13,12 +13,11 @@ TEMPLATE_VFLOW = REPO / "src" / "vflow" / "template_vflow"
 
 
 def _setup_collab_env(tmp_path, team_enabled=False):
-    """Create minimal .vflow structure for collab.mjs testing."""
+    """Create minimal .vflow structure for collab testing."""
     vflow = tmp_path / ".vflow"
     scripts = vflow / "scripts"
     scripts.mkdir(parents=True)
-    for f in ("collab.mjs", "task.mjs", "inject.mjs"):
-        shutil.copy2(str(TEMPLATE_VFLOW / "scripts" / f), str(scripts / f))
+    shutil.copytree(str(TEMPLATE_VFLOW / "scripts" / "dist"), str(scripts / "dist"))
 
     tpl = vflow / "templates"
     tpl.mkdir(parents=True)
@@ -50,12 +49,12 @@ def _setup_collab_env(tmp_path, team_enabled=False):
 
 
 def _run_collab(tmp_path, *args):
-    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "collab.mjs")] + list(args)
+    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "dist" / "collab.js")] + list(args)
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=str(tmp_path))
 
 
 def _run_task(tmp_path, *args):
-    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "task.mjs")] + list(args)
+    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "dist" / "task.js")] + list(args)
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", cwd=str(tmp_path))
 
 

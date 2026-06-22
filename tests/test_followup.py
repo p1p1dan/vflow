@@ -10,8 +10,8 @@ import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 TEMPLATE_VFLOW = REPO / "src" / "vflow" / "template_vflow"
-TASK_MJS = TEMPLATE_VFLOW / "scripts" / "task.mjs"
-INJECT_MJS = TEMPLATE_VFLOW / "scripts" / "inject.mjs"
+TASK_JS = TEMPLATE_VFLOW / "scripts" / "dist" / "task.js"
+INJECT_JS = TEMPLATE_VFLOW / "scripts" / "dist" / "inject.js"
 
 DESIGN_WITH_ROADMAP = """# 设计
 
@@ -57,12 +57,11 @@ DESIGN_NO_ROADMAP = """# 设计
 
 
 def _setup_vflow_mjs(tmp_path, with_archive=False, followup_tasks=None):
-    """Create minimal .vflow structure for task.mjs/inject.mjs testing."""
+    """Create minimal .vflow structure for task/inject testing."""
     vflow = tmp_path / ".vflow"
     scripts = vflow / "scripts"
     scripts.mkdir(parents=True)
-    shutil.copy2(str(TASK_MJS), str(scripts / "task.mjs"))
-    shutil.copy2(str(INJECT_MJS), str(scripts / "inject.mjs"))
+    shutil.copytree(str(TEMPLATE_VFLOW / "scripts" / "dist"), str(scripts / "dist"))
 
     tpl = vflow / "templates"
     tpl.mkdir(parents=True)
@@ -105,13 +104,13 @@ def _setup_vflow_mjs(tmp_path, with_archive=False, followup_tasks=None):
 
 
 def _run_task(tmp_path, *args):
-    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "task.mjs")] + list(args)
+    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "dist" / "task.js")] + list(args)
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                           cwd=str(tmp_path))
 
 
 def _run_inject(tmp_path, mode):
-    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "inject.mjs"), mode]
+    cmd = ["node", str(tmp_path / ".vflow" / "scripts" / "dist" / "inject.js"), mode]
     return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                           cwd=str(tmp_path))
 
