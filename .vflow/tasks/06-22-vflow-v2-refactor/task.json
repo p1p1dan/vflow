@@ -2,7 +2,171 @@
   "id": "06-22-vflow-v2-refactor",
   "title": "vflow v2 架构重构：任务链路连续执行 + spec 知识注入 + 文档合并精简",
   "tier": "T2",
-  "state": "created",
+  "state": "implementing",
   "risk": "high",
-  "created": "2026-06-22T09:58:26"
+  "created": "2026-06-22T09:58:26",
+  "steps": [
+    {
+      "index": 0,
+      "node_id": "plan_req",
+      "node_type": "command",
+      "skill": "vflow-task",
+      "description": "Fill task-spec.md §1 requirements and §2 R-ID acceptance entries",
+      "required_reading": [
+        "@task/task-spec.md",
+        "@.vflow/knowledge.md"
+      ],
+      "completion_checks": [
+        "has_rids"
+      ],
+      "status": "completed",
+      "completion_confirmed": true,
+      "completion_status": "DONE",
+      "completion_evidence": [],
+      "concerns": null,
+      "retried": false,
+      "load": {
+        "loaded_at": "2026-06-23T10:25:43",
+        "required_files": [
+          "E:\\dy\\个人发展\\vflow\\.vflow\\tasks\\06-22-vflow-v2-refactor\\task-spec.md",
+          "E:\\dy\\个人发展\\vflow\\.vflow\\knowledge.md"
+        ],
+        "deferred_files": []
+      },
+      "started_at": "2026-06-23T10:25:43",
+      "completed_at": "2026-06-23T10:25:59"
+    },
+    {
+      "index": 1,
+      "node_id": "gate_req",
+      "node_type": "gate",
+      "skill": "gate:gate_req",
+      "description": "Gate 1: Confirm R-IDs in task-spec.md §2. Reply to continue.",
+      "required_reading": [],
+      "completion_checks": [],
+      "status": "completed",
+      "completion_confirmed": true,
+      "completion_status": "DONE",
+      "completion_evidence": [],
+      "concerns": null,
+      "retried": false,
+      "load": null,
+      "started_at": "2026-06-23T10:26:30",
+      "completed_at": "2026-06-23T10:27:01"
+    },
+    {
+      "index": 2,
+      "node_id": "plan_design",
+      "node_type": "command",
+      "skill": "vflow-task",
+      "description": "Fill task-spec.md §3 design, §4 change list, §5 spec refs, §6 task checklist",
+      "required_reading": [
+        "@task/task-spec.md",
+        "@.vflow/knowledge.md"
+      ],
+      "completion_checks": [
+        "has_checklist",
+        "rids_covered"
+      ],
+      "status": "pending",
+      "completion_confirmed": false,
+      "completion_status": null,
+      "completion_evidence": null,
+      "concerns": null,
+      "retried": false,
+      "load": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "index": 3,
+      "node_id": "implement",
+      "node_type": "command",
+      "skill": "vflow-code",
+      "description": "Implement changes per task-spec.md §6 checklist. Log changes in ledger.md §1.",
+      "required_reading": [
+        "@task/task-spec.md",
+        "@task/ledger.md"
+      ],
+      "completion_checks": [
+        "has_ledger_entries",
+        "checklist_checked"
+      ],
+      "status": "pending",
+      "completion_confirmed": false,
+      "completion_status": null,
+      "completion_evidence": null,
+      "concerns": null,
+      "retried": false,
+      "load": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "index": 4,
+      "node_id": "verify",
+      "node_type": "command",
+      "skill": "vflow-review",
+      "description": "Run tests, fill ledger.md §4 verification results per R-ID",
+      "required_reading": [
+        "@task/task-spec.md",
+        "@task/ledger.md"
+      ],
+      "completion_checks": [
+        "has_rid_closure"
+      ],
+      "status": "pending",
+      "completion_confirmed": false,
+      "completion_status": null,
+      "completion_evidence": null,
+      "concerns": null,
+      "retried": false,
+      "load": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "index": 5,
+      "node_id": "gate_accept",
+      "node_type": "gate",
+      "skill": "gate:gate_accept",
+      "description": "Gate 3: Verify all tests pass and all R-IDs have verification entries in ledger.md §4.",
+      "required_reading": [],
+      "completion_checks": [],
+      "status": "pending",
+      "completion_confirmed": false,
+      "completion_status": null,
+      "completion_evidence": null,
+      "concerns": null,
+      "retried": false,
+      "load": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    {
+      "index": 6,
+      "node_id": "spec_writeback",
+      "node_type": "command",
+      "skill": "vflow-spec",
+      "description": "Write back learnings to spec/ and update knowledge.md",
+      "required_reading": [
+        "@task/ledger.md",
+        "@.vflow/knowledge.md"
+      ],
+      "completion_checks": [
+        "has_knowledge_update"
+      ],
+      "status": "pending",
+      "completion_confirmed": false,
+      "completion_status": null,
+      "completion_evidence": null,
+      "concerns": null,
+      "retried": false,
+      "load": null,
+      "started_at": null,
+      "completed_at": null
+    }
+  ],
+  "active_step_index": null,
+  "ralph_protocol_version": "1"
 }

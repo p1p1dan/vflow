@@ -15,6 +15,7 @@ import {
 } from './lib/config.js';
 import { isTeamMode, selfUid } from './lib/team.js';
 import { designPath, uncheckedItems } from './lib/docs.js';
+import { stepsSummary, hasRalphSession, readTaskJson } from './lib/ralph-store.js';
 
 // ---------------------------------------------------------------------------
 // Path constants (relative to ROOT = .vflow/)
@@ -379,6 +380,20 @@ function doPrompt(): void {
         }
       }
     }
+  }
+
+  // Ralph step context
+  if (taskDir) {
+    try {
+      if (hasRalphSession(taskDir)) {
+        const summary = stepsSummary(taskDir);
+        if (summary) {
+          lines.push('');
+          lines.push(`[ralph] ${summary}`);
+          lines.push('Use `node .vflow/scripts/dist/task.js next` to load the current step, or invoke Skill("vflow-execute") for automatic step-by-step execution.');
+        }
+      }
+    } catch { /* silent */ }
   }
 
   const teamBlock = formatTeamBlock(cfg);

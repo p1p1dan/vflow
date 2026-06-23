@@ -34,6 +34,10 @@ import { archiveMove, extractFollowupTasks } from './lib/archive.js';
 import { pointerPath, isTeamMode, selfUid, reportActivity } from './lib/team.js';
 import { appendQuickLog } from './lib/quick.js';
 import { generateTraceMatrix, formatTraceMatrix } from './lib/trace.js';
+import { buildSteps, buildT1Steps } from './lib/steps-builder.js';
+import { writeSteps } from './lib/ralph-store.js';
+import { cmdNext } from './lib/cmd-next.js';
+import { cmdComplete, type CompleteArgs } from './lib/cmd-complete.js';
 
 // -- helpers --
 
@@ -128,6 +132,19 @@ function cmdCreate(args: { slug: string; title: string; tier: string }): number 
   reportActivity('create', name, 'created');
   console.log(`[vflow] Created task ${name} (state=created)`);
   console.log('Pipeline: created -> analyzed -> designed -> implementing -> verified -> archived');
+
+  // Generate ralph steps from graph
+  try {
+    const graphId = args.tier === 'T1' ? null : 't2-standard';
+    const steps = args.tier === 'T1' ? buildT1Steps() : buildSteps(graphId!, args.tier);
+    if (steps.length > 0) {
+      writeSteps(d, steps);
+      console.log(`[vflow] Ralph steps generated: ${steps.length} steps from ${graphId || 'T1-default'}`);
+    }
+  } catch (e) {
+    console.log(`[vflow] Warning: could not generate ralph steps: ${e}`);
+  }
+
   return 0;
 }
 
@@ -468,7 +485,7 @@ interface ParsedArgs {
 function parseArgs(): ParsedArgs {
   const argv = process.argv.slice(2);
   if (argv.length === 0) {
-    console.log('Usage: task.js <create|advance|back|set|start|done|status|followup|quick-log|trace> [options]');
+    console.log('Usage: task.js <create|advance|back|set|start|done|status|followup|quick-log|trace|next|complete> [options]');
     process.exit(1);
   }
   const cmd = argv[0];
@@ -542,6 +559,21 @@ function parseArgs(): ParsedArgs {
     case 'trace': {
       return { cmd, taskId: positional(0) };
     }
+    case 'next': {
+      return { cmd };
+    }
+    case 'complete': {
+      const idx = positional(0);
+      if (idx === undefined) { console.log('Usage: task.js complete <index> --status <DONE|DONE_WITH_CONCERNS|NEEDS_RETRY|BLOCKED> [--evidence <path>] [--concerns "..."] [--reason "..."]'); process.exit(1); }
+      return {
+        cmd,
+        index: parseInt(idx, 10),
+        status: getOption(['--status'], 'DONE'),
+        evidence: getOption(['--evidence'], '').split(',').filter(Boolean),
+        concerns: getOption(['--concerns'], ''),
+        reason: getOption(['--reason'], ''),
+      };
+    }
     default:
       console.log(`Unknown command: ${cmd}`);
       process.exit(1);
@@ -563,6 +595,8 @@ function main(): number {
     followup: (a) => cmdFollowup(a as unknown as { sub: string; sourceTask?: string; itemId?: string; implTask?: string }),
     'quick-log': (a) => cmdQuickLog(a as unknown as { title: string; files: string }),
     trace: (a) => cmdTrace(a as unknown as { taskId?: string }),
+    next: () => cmdNext(),
+    complete: (a) => cmdComplete(a as unknown as CompleteArgs),
   };
   return handlers[args.cmd](args);
 }
