@@ -1,0 +1,14 @@
+import type { RalphStep, RalphTaskFields } from './ralph-schema.js';
+import type { TaskJson } from './config.js';
+export declare function currentTaskDir(): string | null;
+export declare function readTaskJson(taskDir: string): TaskJson & Partial<RalphTaskFields>;
+export declare function writeTaskJson(taskDir: string, data: TaskJson & Partial<RalphTaskFields>): void;
+export declare function getSteps(taskDir: string): RalphStep[];
+export declare function getActiveStepIndex(taskDir: string): number | null;
+export declare function hasRalphSession(taskDir: string): boolean;
+export declare function findNextPendingStep(steps: RalphStep[]): RalphStep | null;
+export declare function updateStep(taskDir: string, index: number, updater: (step: RalphStep) => void): void;
+export declare function setActiveStep(taskDir: string, index: number): void;
+export declare function clearActiveStep(taskDir: string): void;
+export declare function writeSteps(taskDir: string, steps: RalphStep[]): void;
+export declare function stepsSummary(taskDir: string): string | null;

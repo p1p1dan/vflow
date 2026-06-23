@@ -62,6 +62,15 @@ $ARGUMENTS
 
 用户确认后写入 `.vflow/config.json`（保留已有的 journal 等配置，只更新探测字段），并将 `initialized` 设为 `true` 标记探测完成。`enabled` 保持原值不动（默认 true；若用户主动设为 false 表示禁用 vflow，探测不应覆盖此选择）。
 
+同时将探测结果写入 `.vflow/knowledge.md`（替换模板占位符）：
+- **架构概览**：从 manifest 和目录结构提取的项目架构描述
+- **技术栈**：语言、框架、构建工具、测试框架
+- **开发约定**：从 CLAUDE.md / CONTRIBUTING.md 等提取的编码规范
+- **常见陷阱**：从 git 历史或已知问题推断的注意事项
+- **领域术语**：项目特有的术语（如有）
+
+knowledge.md 不可留空模板——至少填写架构概览和技术栈两个段落。
+
 ### 阶段 D：收尾建议
 
 - 无测试目录 → 提示"可运行 /vflow:go 给项目搭测试骨架（vflow-test）"

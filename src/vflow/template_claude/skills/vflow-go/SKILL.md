@@ -51,7 +51,7 @@ T1/T2 → Output fixed format (user can correct with a single phrase; **can esca
 ```
 
 - T1 → Execute per `.vflow/skills/vflow-quick/SKILL.md`
-- T2 → `node .vflow/scripts/task.mjs create <slug> --title "<title>"` → Execute per `.vflow/skills/vflow-task/SKILL.md`
+- T2 → `node .vflow/scripts/dist/task.js create <slug> --title "<title>"` → Invoke `Skill("vflow-execute")` to start the ralph step loop
 
 ## Hard Rules
 

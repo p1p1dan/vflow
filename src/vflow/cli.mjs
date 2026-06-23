@@ -75,6 +75,7 @@ const MANAGED_AGENTS = [
   'skills/vflow-spec/SKILL.md',
   'skills/vflow-docs/SKILL.md',
   'skills/vflow-meta/SKILL.md',
+  'skills/vflow-execute/SKILL.md',
 ];
 
 const PROJECT_COMMANDS = ['task.md', 'quick.md', 'init.md'];

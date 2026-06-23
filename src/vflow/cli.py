@@ -74,6 +74,7 @@ MANAGED_AGENTS = [
     "skills/vflow-spec/SKILL.md",
     "skills/vflow-docs/SKILL.md",
     "skills/vflow-meta/SKILL.md",
+    "skills/vflow-execute/SKILL.md",
 ]
 # 项目级资产（随项目 git，同事 clone 即得，无需 pip）
 PROJECT_COMMANDS = ["task.md", "quick.md", "init.md"]
