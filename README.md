@@ -1,21 +1,16 @@
 # vflow
 
-轻量级 AI 研发工作流（Claude Code）：任务分级 + 档案留痕 + 规范驱动 + 测试硬规则 + 团队协同。
+轻量级 AI 研发工作流引擎（Claude Code）：任务分级 + 步进执行 + 档案留痕 + 规范驱动 + 文档强制校验。
 
-> 本仓库只包含通用工作流框架与基础规范模板。项目个性化的规范回写、任务档案随各项目自己的 git 管理，不回流本仓库。
+## 安装
 
-## 三种上车方式
-
-**方式一：npm 安装（推荐 ✨，零 Python 依赖，Node.js 重写版）**
+**前置条件**：Node.js >= 18
 
 ```bash
 npm install -g @p1lab/vflow
-
-cd <项目目录>
-vflow init .
 ```
 
-> 国内访问 npmjs.org 慢可走淘宝镜像：`npm install -g @p1lab/vflow --registry=https://registry.npmmirror.com`
+> 国内镜像：`npm install -g @p1lab/vflow --registry=https://registry.npmmirror.com`
 
 升级：
 
@@ -23,104 +18,130 @@ vflow init .
 npm update -g @p1lab/vflow
 ```
 
-**方式二：pip 安装（旧版兼容，Python 实现，v0.5.0 及更早）**
+## 快速开始
 
-> v0.5.1 起官方推荐 npm 方式（方式一）。pip 路径保留给历史项目和 Python-only 环境，新项目无需走这条。
+### 1. 初始化项目
 
 ```bash
-# GitHub（外网）
-pip install git+https://github.com/p1p1dan/vflow.git
-
-cd <项目目录>
+cd <你的项目目录>
 vflow init .
 ```
 
-> pypi 访问受限时先配镜像：`pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/`
+这会在项目中创建 `.vflow/` 和 `.claude/` 目录（工作流配置、hooks、skills）。
 
-然后启动（或重启）Claude Code → 运行 `/vflow:init` 让 AI 探测项目配置（构建系统/语言/特性），完成后即可正常使用。
+### 2. 启动 Claude Code
 
-**方式三：什么都不装（同事/换设备）**
+打开 Claude Code，首次进入会自动触发 `/vflow:init`——AI 扫描项目，探测构建系统、语言、核心路径，写入配置。确认后即可使用。
 
-项目启用 vflow 后，全部资产（`.vflow/` + `.claude/`）随项目 git 提交。同事 clone 仓库、打开 Claude Code **直接可用**——只需要电脑上装了 Node.js ≥ 18（hooks 已统一为 node 实现）。
+### 3. 开始工作
 
-## 对话内使用
+直接用自然语言描述需求，vflow 自动判级分流：
 
-| 入口 | 用法 |
+```
+你: "给登录接口加上 rate limiting"
+vflow: 📋 Tier: T2 Standard (reason: 新功能, 跨文件, risk: low). 创建任务...
+       → 自动生成执行步骤 → 按步推进 → 文档校验 → 知识回写
+```
+
+## 任务分级
+
+| 级别 | 场景 | 流程 |
+| :--- | :--- | :--- |
+| **T0 Q&A** | 解释、比较、问答，不改代码 | 直接回答，无流程 |
+| **T1 Quick** | 单文件小改，低风险 | 极简：改代码 → 验证 → 记录一行 |
+| **T2 Standard** | 新功能、跨文件、核心模块 | 完整：需求分析 → 设计 → 实现 → 验证 → 知识回写 |
+
+## 对话内命令
+
+| 命令 | 说明 |
 | :--- | :--- |
-| 直接对话 | 说需求即可，自动判级分流（T0 问答 / T1 快速 / T2 标准） |
-| `/vflow:go <需求>` | 显式智能入口（不知道用什么时就用它） |
-| `/vflow:task` `/vflow:quick` | 强制标准流程 / 快速通道 |
-| `/vflow:init` | 启用项目 + AI 探测配置（构建系统/core_paths/特性） |
-| `/vflow:commit` | 智能提交：分类改动→中文提交信息→一次确认 |
-| `/vflow:context` | 状态总览：当前任务/档案/历史/日志 |
-| `/vflow:collab` | 团队协同：join/status/sync/claim/release |
+| `/vflow:go <需求>` | 智能入口：描述需求，自动判级执行 |
+| `/vflow:task <描述>` | 强制走 T2 标准流程 |
+| `/vflow:quick <描述>` | 强制走 T1 快速通道 |
+| `/vflow:init` | 项目配置探测（首次使用时自动触发） |
+| `/vflow:commit` | 智能提交：分类改动 → 中文提交信息 → 确认 |
+| `/vflow:context` | 查看当前任务状态、档案历史、日志 |
+
+## 步进执行引擎（v0.10.0+）
+
+T2 任务由 ralph 步进引擎驱动，每步有明确的输入、输出和完成校验：
+
+```
+task.js next      → 加载当前步骤 + 注入所需文件内容
+AI 执行步骤       → 按步骤指令工作
+task.js complete N → 机械性校验文档是否更新，通过才进下一步
+```
+
+**步骤序列**（T2 标准流程）：
+
+```
+plan_req → gate_req → plan_design → implement → verify → gate_accept → spec_writeback
+   ↑          ↑           ↑            ↑          ↑         ↑              ↑
+ 填需求    用户确认    填设计方案    写代码+记录  跑测试   用户确认      知识回写
+```
+
+**文档强制校验**——不更新文档不给进下一步：
+
+| 步骤 | 校验项 |
+| :--- | :--- |
+| 需求分析 | task-spec.md §2 必须有 R-ID |
+| 设计 | task-spec.md §6 必须有 checklist，且覆盖全部 R-ID |
+| 实现 | ledger.md §1 必须有实施记录 |
+| 验证 | ledger.md §4 必须逐条闭环所有 R-ID |
+| 知识回写 | knowledge.md 必须有新增内容 |
+
+### CLI 命令
+
+```bash
+# 任务管理
+vflow init <路径> [--yes]        # 项目启用
+vflow update <路径> [--spec]     # 升级项目受管文件
+vflow decline <路径>             # 标记不启用
+vflow status [路径]              # 查看任务状态
+
+# 步进执行（在项目目录下）
+node .vflow/scripts/dist/task.js create <slug> --title "标题"   # 创建任务
+node .vflow/scripts/dist/task.js next                            # 加载下一步
+node .vflow/scripts/dist/task.js complete <N> --status DONE      # 标记步骤完成
+node .vflow/scripts/dist/task.js advance                         # 推进任务状态
+node .vflow/scripts/dist/task.js status                          # 查看任务状态
+node .vflow/scripts/dist/task.js done --summary "完成摘要"       # 归档任务
+```
+
+## 不装也能用
+
+项目启用 vflow 后，`.vflow/` + `.claude/` 随 git 提交。同事 clone 后打开 Claude Code **直接可用**——只需 Node.js >= 18。
+
+## 目录结构
+
+```
+<项目>/
+├── .vflow/                    # 工作流引擎
+│   ├── config.json            # 项目配置（语言、构建、特性）
+│   ├── workflow.md            # 状态机定义
+│   ├── knowledge.md           # 项目知识库（init 探测 + 任务回写累积）
+│   ├── graphs/                # 执行图定义（t2-standard.json）
+│   ├── scripts/               # TypeScript 脚本（task.ts, inject.ts 等）
+│   ├── skills/                # 工作流 skills（task/quick/review/test/spec 等）
+│   ├── spec/                  # 规范库（编码约定、领域知识）
+│   └── tasks/                 # 任务档案
+└── .claude/
+    ├── commands/vflow/        # /vflow:* 命令定义
+    ├── skills/                # Claude Code skills（execute/go/brainstorm 等）
+    └── settings.json          # hooks 配置（自动注入工作流上下文）
+```
 
 ## 团队协同（v0.8.0+）
 
-基于 Git 的零基础设施团队协同，advisory 模式（警告不阻塞）：
+基于 Git 的零基础设施协同，advisory 模式：
 
 ```bash
-# 启用团队模式
-node .vflow/scripts/collab.mjs join
-
-# 查看团队状态
-node .vflow/scripts/collab.mjs status
-
-# 冲突预检
-node .vflow/scripts/collab.mjs preflight --task <slug>
-
-# 一键同步
-node .vflow/scripts/collab.mjs sync
-
-# 认领/释放任务
-node .vflow/scripts/collab.mjs claim <slug>
-node .vflow/scripts/collab.mjs release <slug>
-
-# archive 全文搜索
-node .vflow/scripts/collab.mjs search <关键词>
+node .vflow/scripts/dist/collab.js join      # 加入团队
+node .vflow/scripts/dist/collab.js status    # 查看团队状态
+node .vflow/scripts/dist/collab.js claim <slug>   # 认领任务
+node .vflow/scripts/dist/collab.js release <slug>  # 释放任务
 ```
 
-**核心特性**：
-- Git email 身份派生（零注册）
-- JSONL 活动日志 + union merge（无冲突）
-- per-uid 任务指针（多人并行不干扰）
-- Spec 三层加载（项目级 → 团队级 → 个人级）
-- Spec writeback 走 staging → review 流程
-- 非团队模式完全不受影响（向后兼容）
+## License
 
-## 架构（混合式：项目为主，全局为辅）
-
-```
-<项目>/（项目资产 = 主体，随 git，clone 即得）
-├── .vflow/                  # workflow.md 状态机 + config + spec 规范库 + tasks 档案
-│   └── skills/              # 9 个技能（task/quick/review/test/spec/brainstorm/debug/meta/think）
-└── .claude/                 # 6 个 /vflow:* 命令 + 项目 hooks（相对路径，零环境依赖）
-
-~/.claude/（全局资产 = 发现与启用层，仅装了 vflow 的人有）
-├── vflow/detect.mjs         # 会话检测：未启用项目→询问一次 / 已拒绝→静默 / 已启用→让位项目 hooks
-├── commands/vflow/init.md   # 全局 /vflow:init 入口（拒绝后改主意时可用）
-└── settings.json            # 全局 hooks（智能合并，保留原有配置）
-```
-
-## CLI 命令
-
-```bash
-vflow init <路径> [--yes]    # 项目启用（--yes 静默默认配置）；首次运行自动完成全局 setup
-vflow update <路径> [--spec] # 升级项目受管文件（保留档案/配置/规范回写）
-vflow decline <路径>         # 标记不启用，不再询问
-vflow status [路径]          # 查看任务状态
-vflow setup                  # 手动刷新全局资产（一般不需要，init/update 自动触发）
-```
-
-## 升级
-
-```bash
-# 方式一：npm（Node.js 版，推荐）
-npm update -g @p1lab/vflow
-
-# 方式二：pip（Python 旧版）
-# GitHub（外网）
-pip install --upgrade git+https://github.com/p1p1dan/vflow.git
-
-# 全局资产自动刷新（下次运行任意 vflow 命令时）；各项目执行 vflow update <路径>
-```
+MIT
