@@ -2,7 +2,7 @@
   "id": "06-22-vflow-v2-refactor",
   "title": "vflow v2 架构重构：任务链路连续执行 + spec 知识注入 + 文档合并精简",
   "tier": "T2",
-  "state": "implementing",
+  "state": "archived",
   "risk": "high",
   "created": "2026-06-22T09:58:26",
   "steps": [
@@ -168,5 +168,13 @@
     }
   ],
   "active_step_index": null,
-  "ralph_protocol_version": "1"
+  "ralph_protocol_version": "1",
+  "verified_at": "2026-06-24T11:06:44",
+  "bypasses": [
+    {
+      "transition": "implementing->verified",
+      "time": "2026-06-24T11:06:44"
+    }
+  ],
+  "completed": "2026-06-24T11:08:47"
 }
