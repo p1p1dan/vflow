@@ -127,7 +127,7 @@ node .vflow/scripts/dist/task.js done --summary "完成摘要"       # 归档任
 │   └── tasks/                 # 任务档案
 └── .claude/
     ├── commands/vflow/        # /vflow:* 命令定义
-    ├── skills/                # Claude Code skills（execute/go/brainstorm 等）
+    ├── skills/                # Claude Code skills（execute/go/brainstorm/context-save/codex-review 等）
     └── settings.json          # hooks 配置（自动注入工作流上下文）
 ```
 
@@ -141,6 +141,15 @@ node .vflow/scripts/dist/collab.js status    # 查看团队状态
 node .vflow/scripts/dist/collab.js claim <slug>   # 认领任务
 node .vflow/scripts/dist/collab.js release <slug>  # 释放任务
 ```
+
+## 多会话隔离（v0.10.0+）
+
+开多个终端窗口并发工作时，每个 Claude Code 会话自动绑定**自己的**活跃任务，互不串台——
+终端 A 创建任务 X、终端 B 创建任务 Y，各自的 `status` / `advance` / `done` 只作用于本会话绑定的任务。
+
+- **零配置**：复用 Claude Code 原生 `session_id`，无需手动指定
+- **向后兼容**：单终端行为完全不变；无 session 信息的环境（如子代理）自动降级到全局指针
+- **归档即清理**：任务归档时自动清除对应会话绑定，不留悬挂状态
 
 ## License
 

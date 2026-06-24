@@ -13,22 +13,22 @@ vflow operates in three layers:
 
 ```
 Global Layer (~/.claude/)
-  detect.py          Session hook: detects .vflow/, asks to enable if absent
+  detect.mjs         Session hook: detects .vflow/, asks to enable if absent
   commands/vflow/    /vflow:init (enable entry point for new projects)
   settings.json      Global hooks registration
 
 Project Layer (<project>/.vflow/)
   workflow.md        ★ Source of truth: task classification, state machine, approval gates
   config.json        Project features, build commands, core paths, test toggle
-  scripts/           task.mjs (lifecycle) + inject.mjs (context injection)
-  skills/            9 skill definitions (SKILL.md per skill)
+  scripts/           TypeScript sources (task.ts, inject.ts) compiled to dist/*.js
+  skills/            workflow skill definitions (SKILL.md per skill)
   spec/              Coding conventions + domain knowledge library
   tasks/             Task archives + quick-log.md
   templates/         Document scaffolds (requirement/plan/verify/quick-entry)
 
 Platform Layer (<project>/.claude/)
   commands/vflow/    6 slash commands (/vflow:go|task|quick|commit|init|context)
-  settings.json      Project hooks: inject.mjs session + inject.mjs prompt
+  settings.json      Project hooks: node dist/inject.js session + prompt
 ```
 
 ## File Responsibilities
@@ -40,9 +40,9 @@ These are maintained by the vflow package. Local edits will be lost on update:
 | File | Role |
 | :--- | :--- |
 | workflow.md | State machine definition, classification rules, approval gates |
-| scripts/task.mjs | Task lifecycle: create, start, set phase/risk, done, status |
-| scripts/inject.mjs | Context injection: reads task state, injects workflow-state block |
-| skills/*/SKILL.md | All 9 skill definitions |
+| scripts/task.ts → dist/task.js | Task lifecycle: create, start, set phase/risk, done, status |
+| scripts/inject.ts → dist/inject.js | Context injection: reads task state, injects workflow-state block |
+| skills/*/SKILL.md | All workflow skill definitions |
 | templates/*.md | Document scaffolds |
 
 ### User-Owned Files (preserved on update)
@@ -53,7 +53,7 @@ These belong to the project and are never overwritten:
 | :--- | :--- |
 | config.json | Project-specific settings (created once, user maintains) |
 | spec/ | Coding conventions (grows via vflow-spec writeback) |
-| tasks/ | Task archives (grows via task.mjs) |
+| tasks/ | Task archives (grows via task.js) |
 | tasks/quick-log.md | T1 quick task log |
 
 ## Customization Entry Points
@@ -79,8 +79,8 @@ These belong to the project and are never overwritten:
 
 Two hooks fire automatically:
 
-1. **SessionStart** → `inject.mjs session`: outputs `<vflow-suggest>` if no active task, or `<vflow-state>` with current task + phase
-2. **UserPromptSubmit** → `inject.mjs prompt`: outputs `<vflow-state>` with current task state on every user message
+1. **SessionStart** → `node dist/inject.js session`: outputs `<vflow-suggest>` if no active task, or `<vflow-state>` with current task + phase
+2. **UserPromptSubmit** → `node dist/inject.js prompt`: outputs `<vflow-state>` with current task state on every user message
 
 The injected `<vflow-state>` block contains:
 - Current task name, phase, risk level
@@ -101,5 +101,5 @@ AI reads the injected block and follows the behavioral rules for the current pha
 
 - Do not modify managed files expecting changes to persist — they are overwritten on `vflow update`
 - Do not put project-specific rules in skill definitions — put them in spec/ or config.json
-- Do not modify inject.mjs or task.mjs for project needs — they are generic infrastructure
+- Do not modify inject.ts or task.ts for project needs — they are generic infrastructure
 - Do not delete spec/ entries without user confirmation — they are team knowledge assets
