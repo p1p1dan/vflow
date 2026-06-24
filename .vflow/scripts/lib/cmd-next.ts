@@ -3,7 +3,7 @@
 import { isoNow } from './config.js';
 import type { RalphStep } from './ralph-schema.js';
 import {
-  currentTaskDir, readTaskJson, findNextPendingStep,
+  resolveStepTaskDir, readTaskJson, findNextPendingStep,
   updateStep, setActiveStep, getActiveStepIndex,
 } from './ralph-store.js';
 import { resolveRequiredReading, assembleStepPrompt } from './ralph-skill-loader.js';
@@ -17,8 +17,8 @@ import { resolveRequiredReading, assembleStepPrompt } from './ralph-skill-loader
  *   3 — active_step_index occupied (a step is already running)
  *   1 — error
  */
-export function cmdNext(): number {
-  const taskDir = currentTaskDir();
+export function cmdNext(taskSlug?: string): number {
+  const taskDir = resolveStepTaskDir(taskSlug);
   if (!taskDir) {
     console.error('[vflow] No active task.');
     return 1;

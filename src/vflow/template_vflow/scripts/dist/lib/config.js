@@ -26,6 +26,7 @@ export const PROJECT_ROOT = dirname(ROOT); // project root
 export const TASKS = join(ROOT, 'tasks');
 export const RUNTIME = join(ROOT, '.runtime');
 export const POINTER = join(RUNTIME, 'current-task');
+export const SESSIONS_DIR = join(RUNTIME, 'sessions');
 export const JOURNAL_DIR = join(ROOT, 'journal');
 export const CONFIG_PATH = join(ROOT, 'config.json');
 export const GRAPHS_DIR = join(ROOT, 'graphs');

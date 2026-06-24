@@ -13,6 +13,7 @@ import {
 } from './config.js';
 import { designPath } from './docs.js';
 import { pointerPath, isTeamMode, selfUid, reportActivity } from './team.js';
+import { clearTaskFromSessions } from './session.js';
 
 // -- directory operations --
 
@@ -169,6 +170,7 @@ export function archiveMove(
   if (existsSync(POINTER)) unlinkSync(POINTER);
   const uidPtr = pointerPath();
   if (uidPtr !== POINTER && existsSync(uidPtr)) unlinkSync(uidPtr);
+  clearTaskFromSessions(basename(taskDir));
   reportActivity('done', basename(taskDir), 'archived');
   console.log(`[vflow] Task archived to ${relative(ROOT, dst)}`);
 }

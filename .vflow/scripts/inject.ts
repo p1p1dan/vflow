@@ -14,6 +14,7 @@ import {
   STATES,
 } from './lib/config.js';
 import { isTeamMode, selfUid } from './lib/team.js';
+import { resolveCurrentTaskSlug, resolveSessionKey, writeLastActiveSession } from './lib/session.js';
 import { designPath, uncheckedItems } from './lib/docs.js';
 import { stepsSummary, hasRalphSession, readTaskJson } from './lib/ralph-store.js';
 
@@ -126,8 +127,13 @@ function taskState(t: TaskJson): string {
   return LEGACY_MAP[t.status || ''] || 'no_task';
 }
 
-function currentState(): [string, TaskJson | null, string | null] {
-  const name = readText(POINTER).trim();
+function currentState(
+  payload?: Record<string, unknown>,
+): [string, TaskJson | null, string | null] {
+  const { slug: name } = resolveCurrentTaskSlug(
+    payload,
+    () => readText(POINTER).trim() || null,
+  );
   if (!name) return ['no_task', null, null];
   const taskDir = join(TASKS, name);
   try {
@@ -325,12 +331,19 @@ function formatTeamBlock(cfg: VflowConfig): string {
 // doPrompt — UserPromptSubmit hook
 // ---------------------------------------------------------------------------
 
-function doPrompt(): void {
+function doPrompt(payload?: Record<string, unknown>): void {
   const cfg = readJson<VflowConfig>(CONFIG, {} as VflowConfig) ?? {} as VflowConfig;
   const { enabled } = readConfigFlags(cfg);
   if (!enabled) return;
 
-  const [state, task, taskDir] = currentState();
+  // Record the active session so CLI subcommands run this turn resolve the same
+  // task this session is bound to (they never receive the session id on stdin).
+  const sessionKey = resolveSessionKey(payload);
+  if (sessionKey) {
+    try { writeLastActiveSession(sessionKey); } catch { /* non-fatal */ }
+  }
+
+  const [state, task, taskDir] = currentState(payload);
   const block = stateBlock(state);
   if (!block) return;
 
@@ -416,7 +429,7 @@ function doPrompt(): void {
 // doSession — SessionStart hook
 // ---------------------------------------------------------------------------
 
-function doSession(): void {
+function doSession(payload?: Record<string, unknown>): void {
   const cfg = readJson<VflowConfig>(CONFIG, {} as VflowConfig) ?? {} as VflowConfig;
   const { enabled, initialized } = readConfigFlags(cfg);
   if (!enabled) return;
@@ -448,7 +461,7 @@ function doSession(): void {
     }
   }
 
-  const [state, task] = currentState();
+  const [state, task] = currentState(payload);
   if (task) {
     lines.push(`Active task: ${task.id} (state=${state})`);
     lines.push(`Pipeline: ${pipelineLine(state)}`);
@@ -479,13 +492,28 @@ function doSession(): void {
 // Main
 // ---------------------------------------------------------------------------
 
+function readStdinPayload(): Record<string, unknown> | undefined {
+  // Claude Code passes a small one-shot JSON on stdin (fd 0). A synchronous
+  // read is fine. When there is no stdin (e.g. manual invocation), this throws
+  // and we fall back to the pointer-based resolution.
+  try {
+    const raw = readFileSync(0, 'utf-8');
+    if (!raw.trim()) return undefined;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function main(): number {
   const mode = process.argv[2] || 'prompt';
   try {
+    const payload = readStdinPayload();
     if (mode === 'session') {
-      doSession();
+      doSession(payload);
     } else {
-      doPrompt();
+      doPrompt(payload);
     }
   } catch {
     // silent — hook must not break the host

@@ -6,14 +6,46 @@ import type { RalphStep, RalphTaskFields } from './ralph-schema.js';
 import type { TaskJson } from './config.js';
 import { TASKS, RUNTIME } from './config.js';
 import { pointerPath } from './team.js';
+import { readSessionBinding, resolveCliTaskSlug } from './session.js';
 
 // -- Task directory resolution --
 
-export function currentTaskDir(): string | null {
-  const ptr = pointerPath();
-  if (!existsSync(ptr)) return null;
-  const name = readFileSync(ptr, 'utf-8').trim();
+export function currentTaskDir(sessionKey?: string): string | null {
+  let name: string | null = null;
+  if (sessionKey) {
+    name = readSessionBinding(sessionKey);
+  }
+  if (!name) {
+    const ptr = pointerPath();
+    if (!existsSync(ptr)) return null;
+    name = readFileSync(ptr, 'utf-8').trim();
+  }
+  if (!name) return null;
   const d = join(TASKS, name);
+  try {
+    if (statSync(d).isDirectory()) return d;
+  } catch { /* */ }
+  return null;
+}
+
+// Resolve a task directory for a ralph subcommand: explicit slug wins, else
+// resolve via the session bridge (concurrent terminals stay isolated), falling
+// back to the legacy pointer.
+export function resolveStepTaskDir(explicitSlug?: string): string | null {
+  if (explicitSlug) {
+    const d = join(TASKS, explicitSlug);
+    try {
+      if (statSync(d).isDirectory()) return d;
+    } catch { /* */ }
+    return null;
+  }
+  const { slug } = resolveCliTaskSlug(() => {
+    const ptr = pointerPath();
+    if (!existsSync(ptr)) return null;
+    return readFileSync(ptr, 'utf-8').trim() || null;
+  });
+  if (!slug) return null;
+  const d = join(TASKS, slug);
   try {
     if (statSync(d).isDirectory()) return d;
   } catch { /* */ }

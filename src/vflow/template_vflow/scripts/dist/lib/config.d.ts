@@ -4,6 +4,7 @@ export declare const PROJECT_ROOT: string;
 export declare const TASKS: string;
 export declare const RUNTIME: string;
 export declare const POINTER: string;
+export declare const SESSIONS_DIR: string;
 export declare const JOURNAL_DIR: string;
 export declare const CONFIG_PATH: string;
 export declare const GRAPHS_DIR: string;

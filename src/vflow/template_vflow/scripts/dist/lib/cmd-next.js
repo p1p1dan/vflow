@@ -1,6 +1,6 @@
 // cmd-next.ts — Load the next pending step: resolve skill + inline required_reading → stdout.
 import { isoNow } from './config.js';
-import { currentTaskDir, readTaskJson, findNextPendingStep, updateStep, setActiveStep, } from './ralph-store.js';
+import { resolveStepTaskDir, readTaskJson, findNextPendingStep, updateStep, setActiveStep, } from './ralph-store.js';
 import { resolveRequiredReading, assembleStepPrompt } from './ralph-skill-loader.js';
 /**
  * Execute the `next` command.
@@ -11,8 +11,8 @@ import { resolveRequiredReading, assembleStepPrompt } from './ralph-skill-loader
  *   3 — active_step_index occupied (a step is already running)
  *   1 — error
  */
-export function cmdNext() {
-    const taskDir = currentTaskDir();
+export function cmdNext(taskSlug) {
+    const taskDir = resolveStepTaskDir(taskSlug);
     if (!taskDir) {
         console.error('[vflow] No active task.');
         return 1;

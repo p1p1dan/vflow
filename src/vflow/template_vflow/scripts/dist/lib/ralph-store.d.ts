@@ -1,6 +1,7 @@
 import type { RalphStep, RalphTaskFields } from './ralph-schema.js';
 import type { TaskJson } from './config.js';
-export declare function currentTaskDir(): string | null;
+export declare function currentTaskDir(sessionKey?: string): string | null;
+export declare function resolveStepTaskDir(explicitSlug?: string): string | null;
 export declare function readTaskJson(taskDir: string): TaskJson & Partial<RalphTaskFields>;
 export declare function writeTaskJson(taskDir: string, data: TaskJson & Partial<RalphTaskFields>): void;
 export declare function getSteps(taskDir: string): RalphStep[];

@@ -4,6 +4,7 @@ import { join, basename, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { readJson, readText, isoNow, isoToday, yearMonth, ROOT, TASKS, POINTER, JOURNAL_DIR, } from './config.js';
 import { pointerPath, reportActivity } from './team.js';
+import { clearTaskFromSessions } from './session.js';
 // -- directory operations --
 function copyDirRecursive(src, dst) {
     mkdirSync(dst, { recursive: true });
@@ -157,6 +158,7 @@ export function archiveMove(taskDir, task, summary) {
     const uidPtr = pointerPath();
     if (uidPtr !== POINTER && existsSync(uidPtr))
         unlinkSync(uidPtr);
+    clearTaskFromSessions(basename(taskDir));
     reportActivity('done', basename(taskDir), 'archived');
     console.log(`[vflow] Task archived to ${relative(ROOT, dst)}`);
 }

@@ -5,6 +5,7 @@ export interface CompleteArgs {
     evidence?: string[];
     concerns?: string;
     reason?: string;
+    task?: string;
 }
 /**
  * Execute the `complete` command.

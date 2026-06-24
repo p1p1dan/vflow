@@ -24,6 +24,7 @@ import { isFilled, uncheckedItems, designPath } from './lib/docs.js';
 import { checkArchived } from './lib/checks.js';
 import { archiveMove, extractFollowupTasks } from './lib/archive.js';
 import { pointerPath, isTeamMode, selfUid, reportActivity } from './lib/team.js';
+import { writeSessionBinding, resolveCliTaskSlug, resolveCliSessionKey } from './lib/session.js';
 import { appendQuickLog } from './lib/quick.js';
 import { generateTraceMatrix, formatTraceMatrix } from './lib/trace.js';
 import { buildSteps, buildT1Steps } from './lib/steps-builder.js';
@@ -34,18 +35,41 @@ import { cmdComplete } from './lib/cmd-complete.js';
 function writeJson(path, data) {
     writeFileSync(path, JSON.stringify(data, null, 2) + '\n', 'utf-8');
 }
-function currentTaskDir() {
+function pointerSlug() {
     const ptr = pointerPath();
     if (!existsSync(ptr))
         return null;
-    const name = readText(ptr).trim();
-    const d = join(TASKS, name);
+    return readText(ptr).trim() || null;
+}
+function currentTaskDir() {
+    // Resolve via the session bridge first (the inject hook records this turn's
+    // session key in .runtime/last-active-session), so concurrent terminals each
+    // resolve their own bound task instead of the last-written global pointer.
+    const { slug } = resolveCliTaskSlug(pointerSlug);
+    if (!slug)
+        return null;
+    const d = join(TASKS, slug);
     try {
         if (statSync(d).isDirectory())
             return d;
     }
     catch { /* */ }
     return null;
+}
+// Resolve the task directory for an in-conversation subcommand. An explicit
+// --task <slug> wins (Claude already knows which task it is working on); else
+// fall back to the legacy pointer.
+function resolveTaskDir(explicitSlug) {
+    if (explicitSlug) {
+        const d = join(TASKS, explicitSlug);
+        try {
+            if (statSync(d).isDirectory())
+                return d;
+        }
+        catch { /* */ }
+        return null;
+    }
+    return currentTaskDir();
 }
 function taskState(t) {
     if (t.state)
@@ -118,6 +142,14 @@ function cmdCreate(args) {
     if (isTeamMode() && pointerPath() !== POINTER) {
         writeFileSync(POINTER, name, 'utf-8');
     }
+    // Bind this task to the calling session. The inject hook records the active
+    // session key in .runtime/last-active-session each turn, so even though the
+    // CLI subprocess never receives session_id on stdin, we can resolve it here
+    // and isolate concurrent terminals. Falls back to ENV / pointer if absent.
+    const sessionKey = resolveCliSessionKey();
+    if (sessionKey) {
+        writeSessionBinding(sessionKey, name);
+    }
     reportActivity('create', name, 'created');
     console.log(`[vflow] Created task ${name} (state=created)`);
     console.log('Pipeline: created -> analyzed -> designed -> implementing -> verified -> archived');
@@ -141,7 +173,7 @@ function _recordBypass(task, transition) {
     task.bypasses.push({ transition, time: isoNow() });
 }
 function cmdAdvance(args) {
-    const d = currentTaskDir();
+    const d = resolveTaskDir(args.task);
     if (!d) {
         console.log('[vflow] No active task');
         return 1;
@@ -192,8 +224,8 @@ function cmdAdvance(args) {
     console.log(`[vflow] ${state} -> ${nxt}`);
     return 0;
 }
-function cmdBack() {
-    const d = currentTaskDir();
+function cmdBack(args) {
+    const d = resolveTaskDir(args.task);
     if (!d) {
         console.log('[vflow] No active task');
         return 1;
@@ -215,7 +247,7 @@ function cmdBack() {
     return 0;
 }
 function cmdSet(args) {
-    const d = currentTaskDir();
+    const d = resolveTaskDir(args.task);
     if (!d) {
         console.log('[vflow] No active task');
         return 1;
@@ -237,7 +269,7 @@ function cmdSet(args) {
     return 0;
 }
 function cmdStart(args) {
-    const d = currentTaskDir();
+    const d = resolveTaskDir(args.task);
     if (!d) {
         console.log('[vflow] No active task');
         return 1;
@@ -286,7 +318,7 @@ function cmdStart(args) {
     return 0;
 }
 function cmdDone(args) {
-    const d = currentTaskDir();
+    const d = resolveTaskDir(args.task);
     if (!d) {
         console.log('[vflow] No active task');
         return 1;
@@ -349,8 +381,8 @@ function cmdDone(args) {
     archiveMove(d, t, args.summary || '');
     return 0;
 }
-function cmdStatus() {
-    const d = currentTaskDir();
+function cmdStatus(args) {
+    const d = resolveTaskDir(args.task);
     if (!d) {
         console.log('[vflow] No active task (no_task)');
         return 0;
@@ -512,7 +544,8 @@ function parseArgs() {
         let pos = 0;
         for (let i = 0; i < rest.length; i++) {
             if (rest[i].startsWith('-')) {
-                if (['--title', '--tier', '--summary', '--impl', '--files'].includes(rest[i]))
+                if (['--title', '--tier', '--summary', '--impl', '--files', '--task',
+                    '--status', '--evidence', '--concerns', '--reason'].includes(rest[i]))
                     i++;
                 continue;
             }
@@ -532,9 +565,9 @@ function parseArgs() {
             return { cmd, slug, title: getOption(['--title'], ''), tier: getOption(['--tier'], 'T2') };
         }
         case 'advance':
-            return { cmd, skipCheck: getFlag(['--skip-check']) };
+            return { cmd, skipCheck: getFlag(['--skip-check']), task: getOption(['--task'], '') };
         case 'back':
-            return { cmd };
+            return { cmd, task: getOption(['--task'], '') };
         case 'set': {
             const key = positional(0);
             const value = positional(1);
@@ -542,14 +575,14 @@ function parseArgs() {
                 console.log('Usage: task.js set <key> <value>');
                 process.exit(1);
             }
-            return { cmd, key, value };
+            return { cmd, key, value, task: getOption(['--task'], '') };
         }
         case 'start':
-            return { cmd, skip: getFlag(['--skip']) };
+            return { cmd, skip: getFlag(['--skip']), task: getOption(['--task'], '') };
         case 'done':
-            return { cmd, summary: getOption(['--summary'], ''), force: getFlag(['--force']) };
+            return { cmd, summary: getOption(['--summary'], ''), force: getFlag(['--force']), task: getOption(['--task'], '') };
         case 'status':
-            return { cmd };
+            return { cmd, task: getOption(['--task'], '') };
         case 'followup': {
             const sub = positional(0);
             if (!sub || !['list', 'close'].includes(sub)) {
@@ -575,7 +608,7 @@ function parseArgs() {
             return { cmd, taskId: positional(0) };
         }
         case 'next': {
-            return { cmd };
+            return { cmd, task: getOption(['--task'], '') };
         }
         case 'complete': {
             const idx = positional(0);
@@ -590,6 +623,7 @@ function parseArgs() {
                 evidence: getOption(['--evidence'], '').split(',').filter(Boolean),
                 concerns: getOption(['--concerns'], ''),
                 reason: getOption(['--reason'], ''),
+                task: getOption(['--task'], ''),
             };
         }
         default:
@@ -603,15 +637,15 @@ function main() {
     const handlers = {
         create: (a) => cmdCreate(a),
         advance: (a) => cmdAdvance(a),
-        back: () => cmdBack(),
+        back: (a) => cmdBack(a),
         set: (a) => cmdSet(a),
         start: (a) => cmdStart(a),
         done: (a) => cmdDone(a),
-        status: () => cmdStatus(),
+        status: (a) => cmdStatus(a),
         followup: (a) => cmdFollowup(a),
         'quick-log': (a) => cmdQuickLog(a),
         trace: (a) => cmdTrace(a),
-        next: () => cmdNext(),
+        next: (a) => cmdNext(a.task || undefined),
         complete: (a) => cmdComplete(a),
     };
     return handlers[args.cmd](args);

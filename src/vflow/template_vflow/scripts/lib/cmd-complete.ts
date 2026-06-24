@@ -4,7 +4,7 @@ import { isoNow } from './config.js';
 import type { CompletionStatus } from './ralph-schema.js';
 import { VALID_COMPLETION_STATUSES } from './ralph-schema.js';
 import {
-  currentTaskDir, readTaskJson, updateStep, clearActiveStep,
+  resolveStepTaskDir, readTaskJson, updateStep, clearActiveStep,
 } from './ralph-store.js';
 import { runCompletionChecks } from './ralph-checker.js';
 
@@ -14,6 +14,7 @@ export interface CompleteArgs {
   evidence?: string[];
   concerns?: string;
   reason?: string;
+  task?: string;
 }
 
 /**
@@ -24,7 +25,7 @@ export interface CompleteArgs {
  *   1 — error (validation failure, wrong index, etc.)
  */
 export function cmdComplete(args: CompleteArgs): number {
-  const taskDir = currentTaskDir();
+  const taskDir = resolveStepTaskDir(args.task);
   if (!taskDir) {
     console.error('[vflow] No active task.');
     return 1;

@@ -20,3 +20,11 @@ docs/context-sessions/
 # npm pack 临时产物
 .tmp_pkg/
 *.tgz
+.ace-tool/
+
+# 测试/排查临时产物
+.pytest-tmp/
+.tmp-*/
+tests/.tmp_pytest_base/
+fanxiu.txt
+vflow-fix.txt

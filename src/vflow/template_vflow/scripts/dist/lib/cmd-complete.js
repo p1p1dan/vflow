@@ -1,7 +1,7 @@
 // cmd-complete.ts — Mark a step as completed with validation.
 import { isoNow } from './config.js';
 import { VALID_COMPLETION_STATUSES } from './ralph-schema.js';
-import { currentTaskDir, readTaskJson, updateStep, clearActiveStep, } from './ralph-store.js';
+import { resolveStepTaskDir, readTaskJson, updateStep, clearActiveStep, } from './ralph-store.js';
 import { runCompletionChecks } from './ralph-checker.js';
 /**
  * Execute the `complete` command.
@@ -11,7 +11,7 @@ import { runCompletionChecks } from './ralph-checker.js';
  *   1 — error (validation failure, wrong index, etc.)
  */
 export function cmdComplete(args) {
-    const taskDir = currentTaskDir();
+    const taskDir = resolveStepTaskDir(args.task);
     if (!taskDir) {
         console.error('[vflow] No active task.');
         return 1;

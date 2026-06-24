@@ -7,4 +7,4 @@
  *   3 — active_step_index occupied (a step is already running)
  *   1 — error
  */
-export declare function cmdNext(): number;
+export declare function cmdNext(taskSlug?: string): number;
