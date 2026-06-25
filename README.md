@@ -142,7 +142,7 @@ node .vflow/scripts/dist/collab.js claim <slug>   # 认领任务
 node .vflow/scripts/dist/collab.js release <slug>  # 释放任务
 ```
 
-## 多会话隔离（v0.10.0+）
+## 多会话隔离（v0.11.0+）
 
 开多个终端窗口并发工作时，每个 Claude Code 会话自动绑定**自己的**活跃任务，互不串台——
 终端 A 创建任务 X、终端 B 创建任务 Y，各自的 `status` / `advance` / `done` 只作用于本会话绑定的任务。
