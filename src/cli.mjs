@@ -29,6 +29,7 @@ const MANAGED_VFLOW = [
   'scripts/tsconfig.json',
   'scripts/package.json',
   'scripts/inject.ts',
+  'scripts/hook-runner.ts',
   'scripts/proposal.ts',
   'scripts/lib/checks.ts',
   'scripts/lib/config.ts',
@@ -61,14 +62,10 @@ const GITIGNORE_LINES = [
 const CLAUDE_MD_MARKER_START = '<!-- vflow:authority:start -->';
 const CLAUDE_MD_MARKER_END = '<!-- vflow:authority:end -->';
 
-const PROJECT_DEGRADED = (mode) =>
-  `<vflow-degraded>vflow inject hook failed. AI: run ` +
-  `\`node .vflow/scripts/dist/inject.js ${mode}\` manually to diagnose ` +
-  `(node missing? cwd? encoding?), report the cause to the user, ` +
-  `then continue this turn.</vflow-degraded>`;
-
+// Bare command only: no quoting, no operators, no $VAR — parses identically in
+// cmd.exe / PowerShell / sh. All shell-specific work lives in hook-runner.js.
 function projectHookCmd(mode) {
-  return `cd "$CLAUDE_PROJECT_DIR" && node .vflow/scripts/dist/inject.js ${mode} || echo '${PROJECT_DEGRADED(mode)}'`;
+  return `node .vflow/scripts/dist/hook-runner.js ${mode}`;
 }
 
 const PROJECT_HOOKS = {

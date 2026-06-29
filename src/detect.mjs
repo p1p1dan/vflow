@@ -38,7 +38,8 @@ function declined(cwd) {
 function projectHasHooks(cwd) {
   try {
     const content = readFileSync(join(cwd, '.claude', 'settings.json'), 'utf-8');
-    return content.includes('.vflow/scripts/dist/inject.js');
+    // Match any vflow project hook (inject.js legacy, hook-runner.js current).
+    return content.includes('.vflow/scripts/dist/');
   } catch {
     return false;
   }
