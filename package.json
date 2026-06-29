@@ -1,23 +1,27 @@
 {
   "name": "@p1lab/vflow",
-  "version": "0.11.0",
-  "description": "轻量级 AI 研发工作流引擎：任务分级 + 步进执行 + 档案留痕 + 规范驱动 + 文档强制校验（Claude Code）",
+  "version": "2.0.1",
+  "description": "提案驱动 AI 研发工作流引擎",
   "type": "module",
   "bin": {
-    "vflow": "src/vflow/cli.mjs"
+    "vflow": "src/cli.mjs"
   },
   "files": [
-    "src/vflow/cli.mjs",
-    "src/vflow/detect.mjs",
-    "src/vflow/template_vflow/**/*",
-    "src/vflow/template_claude/**/*"
+    "src/cli.mjs",
+    "src/detect.mjs",
+    "src/template_vflow/**/*",
+    "src/template_claude/**/*"
   ],
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/p1p1dan/vflow.git"
-  },
-  "license": "MIT",
   "engines": {
     "node": ">=18"
-  }
+  },
+  "scripts": {
+    "build": "cd src/template_vflow/scripts && npm install && npx tsc && rm -rf node_modules",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/p1p1dan/vflow"
+  },
+  "license": "MIT"
 }

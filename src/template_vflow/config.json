@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "project": "<project-name>",
+  "language": "",
+  "enabled": true,
+  "initialized": false,
+  "test_required": true,
+  "build": {
+    "command": "",
+    "test_command": ""
+  },
+  "features": {
+    "proposals": true,
+    "knowledge": true,
+    "sessions": true
+  }
+}
