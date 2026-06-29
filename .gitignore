@@ -1,2 +1,10 @@
 node_modules/
 src/template_vflow/scripts/node_modules/
+
+# Runtime artifacts from running vflow inside its own repo (dev/test)
+.vflow/
+src/template_vflow/proposals/
+src/template_vflow/repo.json
+src/template_vflow/runtime/
+src/template_vflow/knowledge/
+src/template_vflow/.runtime/

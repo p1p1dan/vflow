@@ -16,9 +16,16 @@ function rm(target) {
 }
 
 function run(command, args) {
+  // When this build runs under `npm publish` (via prepublishOnly), the parent
+  // npm injects npm_config_* env vars (prefix, etc.) that hijack the nested
+  // `npm ci --prefix` below and install to the wrong place. Strip them so the
+  // nested npm runs in the same clean env as a manual invocation.
+  const cleanEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !/^npm_config_/i.test(k))
+  );
   const result = spawnSync(command, args, {
     cwd: scriptsDir,
-    env: { ...process.env, npm_config_json: 'false' },
+    env: { ...cleanEnv, npm_config_json: 'false' },
     stdio: quiet ? ['ignore', 'ignore', 'inherit'] : 'inherit',
   });
   if (result.error) throw result.error;
