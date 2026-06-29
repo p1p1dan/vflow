@@ -109,12 +109,63 @@ const OLD_VFLOW_SKILLS = [
 
 // --- Utilities ---
 
-function readJson(filepath, fallback) {
+function formatJsonError(err) {
+  if (!err) return '未知错误';
+  if (err instanceof SyntaxError) return err.message;
+  return err.code ? `${err.code}: ${err.message}` : err.message;
+}
+
+function readJsonFile(filepath) {
   try {
-    return JSON.parse(fs.readFileSync(filepath, 'utf-8'));
-  } catch {
-    return fallback;
+    return { ok: true, value: JSON.parse(fs.readFileSync(filepath, 'utf-8')) };
+  } catch (err) {
+    if (err?.code === 'ENOENT') return { ok: false, missing: true };
+    return { ok: false, error: err };
   }
+}
+
+function readJson(filepath, fallback) {
+  const result = readJsonFile(filepath);
+  if (result.ok) return result.value;
+  if (result.missing) return fallback;
+  console.warn(`[vflow] 警告: JSON 解析失败，使用默认值: ${filepath}`);
+  console.warn(`  原因: ${formatJsonError(result.error)}`);
+  return fallback;
+}
+
+function backupFile(filepath) {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-');
+  const backup = `${filepath}.bak.${ts}`;
+  fs.copyFileSync(filepath, backup);
+  return backup;
+}
+
+function readGlobalSettingsOrAbort() {
+  const result = readJsonFile(GLOBAL_SETTINGS);
+  if (result.ok) return result.value;
+  if (result.missing) return {};
+
+  const backup = backupFile(GLOBAL_SETTINGS);
+  console.error(`[vflow] 错误: 全局 settings.json 解析失败，已备份原文件: ${backup}`);
+  console.error(`  原因: ${formatJsonError(result.error)}`);
+  console.error('  为避免覆盖用户原配置，setup 已中止。请修复 JSON 后重试。');
+  throw new Error('全局 settings.json 解析失败');
+}
+
+function readProjectSettingsOrRebuild(filepath) {
+  const result = readJsonFile(filepath);
+  if (result.ok) return result.value;
+  if (result.missing) return {};
+
+  const backup = backupFile(filepath);
+  console.warn(`[vflow] 警告: 项目 settings.json 解析失败，已备份原文件: ${backup}`);
+  console.warn(`  原因: ${formatJsonError(result.error)}`);
+  console.warn('  将重建 .claude/settings.json。');
+  return {};
+}
+
+function formatSpawnCommand(cmd) {
+  return [cmd[0], ...cmd.slice(1)].join(' ');
 }
 
 function writeJson(filepath, data) {
@@ -163,8 +214,7 @@ function hookCmd(mode) {
   return `"${process.execPath}" "${DETECT_DST}" ${mode} || echo '${GLOBAL_DEGRADED}'`;
 }
 
-function mergeGlobalHooks() {
-  const settings = readJson(GLOBAL_SETTINGS, {});
+function mergeGlobalHooks(settings) {
   if (!settings.hooks) settings.hooks = {};
   const hooks = settings.hooks;
 
@@ -185,6 +235,7 @@ function mergeGlobalHooks() {
 
 function doSetup(quiet = false) {
   const say = quiet ? () => {} : (msg) => console.log(msg);
+  const settings = readGlobalSettingsOrAbort();
 
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.copyFileSync(DETECT_SRC, DETECT_DST);
@@ -207,7 +258,7 @@ function doSetup(quiet = false) {
     safeRmDir(path.join(CLAUDE_HOME, 'skills', s));
   }
 
-  mergeGlobalHooks();
+  mergeGlobalHooks(settings);
   say('  [合并] ~/.claude/settings.json（全局检测 hooks）');
   writeJson(STAMP, { version: VERSION, node: process.execPath });
   say(`\n[vflow] 全局安装完成 v${VERSION}。在任意项目打开 Claude Code：`);
@@ -334,14 +385,7 @@ function installProjectHooks(dstRoot) {
   const cl = path.join(dstRoot, '.claude');
   fs.mkdirSync(cl, { recursive: true });
   const sp = path.join(cl, 'settings.json');
-  let settings = readJson(sp, null);
-  if (settings === null) {
-    if (fs.existsSync(sp)) {
-      fs.copyFileSync(sp, sp + '.bak');
-      console.log('  [警告] 项目 settings.json 解析失败，已备份 .bak 后重建');
-    }
-    settings = {};
-  }
+  let settings = readProjectSettingsOrRebuild(sp);
   if (!settings.hooks) settings.hooks = {};
   const hooks = settings.hooks;
   let changed = false;
@@ -452,10 +496,24 @@ function smokeTest(dstRoot) {
     const output = ((r.stdout || '') + (r.stderr || '')).trim();
     const lines = output.split('\n');
     console.log(`  自检 ${path.basename(cmd[1])} -> ${lines[0] || '(无输出)'}`);
+    if (r.error) {
+      const kind = r.error.code === 'ETIMEDOUT' ? '超时' : `spawn error: ${r.error.message}`;
+      throw new Error(`自检失败: ${formatSpawnCommand(cmd)} ${kind}`);
+    }
+    if (r.signal === 'SIGTERM' && r.status === null) {
+      throw new Error(`自检失败: ${formatSpawnCommand(cmd)} 超时`);
+    }
+    if (r.status !== 0) {
+      throw new Error(`自检失败: ${formatSpawnCommand(cmd)} 退出码 ${r.status}`);
+    }
   }
 }
 
 async function doInstall(dst, { update = false, spec = false, yes = false, reconfigure = false } = {}) {
+  if (update && spec) {
+    return doSpecUpdate(dst);
+  }
+
   const mode = update ? '更新' : '启用';
   console.log(`[vflow] ${mode}项目 -> ${dst}`);
 
@@ -519,6 +577,20 @@ async function doInstall(dst, { update = false, spec = false, yes = false, recon
   return 0;
 }
 
+function doSpecUpdate(dst) {
+  console.log(`[vflow] 更新项目 spec -> ${dst}`);
+  const src = path.join(SRC_VFLOW, 'spec');
+  const dstSpec = path.join(dst, '.vflow', 'spec');
+  if (!fs.existsSync(src)) {
+    console.log('[vflow] 模板 spec 不存在');
+    return 1;
+  }
+  copytreeSync(src, dstSpec);
+  console.log('  [合并] .vflow/spec/');
+  console.log(`[vflow] spec 更新完成 v${VERSION}。`);
+  return 0;
+}
+
 // --- decline/status ---
 
 function doDecline(dst) {
@@ -544,7 +616,7 @@ function doStatus(dst) {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   console.log(((r.stdout || '') + (r.stderr || '')).trim());
-  return 0;
+  return r.status === 0 ? 0 : 1;
 }
 
 // --- Main ---
@@ -559,7 +631,7 @@ async function main() {
     console.log('Commands:');
     console.log('  setup                 全局安装（检测 hooks + detect.mjs）');
     console.log('  init <path> [--yes]   为项目启用 vflow');
-    console.log('  update <path>         同步托管文件到最新版本');
+    console.log('  update <path> [--spec] 同步托管文件到最新版本；--spec 仅合并 .vflow/spec');
     console.log('  decline <path>        标记项目不启用 vflow');
     console.log('  status <path>         查看项目状态');
     return 0;
@@ -612,6 +684,6 @@ async function main() {
 }
 
 main().then((code) => process.exit(code || 0)).catch((err) => {
-  console.error(err);
+  console.error(err?.message || err);
   process.exit(1);
 });

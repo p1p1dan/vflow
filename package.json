@@ -7,6 +7,7 @@
     "vflow": "src/cli.mjs"
   },
   "files": [
+    "scripts/build-template.mjs",
     "src/cli.mjs",
     "src/detect.mjs",
     "src/template_vflow/**/*",
@@ -16,7 +17,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "cd src/template_vflow/scripts && npm install && npx tsc && rm -rf node_modules",
+    "build": "node scripts/build-template.mjs",
+    "prepack": "npm run build",
     "prepublishOnly": "npm run build"
   },
   "repository": {
