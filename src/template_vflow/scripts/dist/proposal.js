@@ -628,7 +628,7 @@ async function cmdVerifyWaive(flags) {
     const userApproved = flags['user-approved'] === 'true';
     if (!await confirmByUser(`Waive check ${checkId}? Reason: ${reason}`, userApproved)) {
         console.log('REJECTED: waiver must be confirmed by user.');
-        console.log('AI: 先向用户说明为何要豁免该检查并征询;用户对话内同意后重跑 `verify waive --check ... --reason ... --user-approved`。');
+        console.log('AI: explain to the user why this check should be waived and ask; after in-conversation approval, rerun `verify waive --check ... --reason ... --user-approved`.');
         return;
     }
     result.waiver = reason;
@@ -722,7 +722,7 @@ async function cmdAccept(flags) {
     const userApproved = flags['user-approved'] === 'true';
     if (!await confirmByUser(`Accept proposal ${proposal.id} "${proposal.title}"?`, userApproved)) {
         console.log('REJECTED: accept must be confirmed by user.');
-        console.log('AI: 先暂停,向用户汇报【目标/现状/差异/验证结果/风险】并征询;用户在对话内明确同意后,重跑 `accept --user-approved`(事件留痕 ai_relay)。用户亦可自行在终端运行 `accept` 交互确认。');
+        console.log('AI: pause first. Report goal / current state / diff-from-goal / verification results / risks to the user and ask. Only after explicit in-conversation approval, rerun `accept --user-approved` (logged as ai_relay). The user may also run `accept` in a terminal to confirm interactively.');
         return;
     }
     const via = userApproved ? 'ai_relay' : (process.stdin.isTTY ? 'tty_prompt' : 'stdin_pipe');
@@ -782,7 +782,7 @@ async function cmdConfirmDesign(flags) {
     }
     const userApproved = flags['user-approved'] === 'true';
     if (!await confirmByUser(`Confirm design for T3 proposal ${proposal.id}?`, userApproved)) {
-        console.log('Design confirmation cancelled. AI: 先向用户呈现设计决策并征询;用户对话内同意后重跑 `confirm-design --user-approved`。');
+        console.log('Design confirmation cancelled. AI: present the design decisions to the user and ask; after in-conversation approval, rerun `confirm-design --user-approved`.');
         return;
     }
     const via = userApproved ? 'ai_relay' : (process.stdin.isTTY ? 'tty_prompt' : 'stdin_pipe');
