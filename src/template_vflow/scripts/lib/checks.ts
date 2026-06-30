@@ -106,6 +106,12 @@ function checkVerifyToPendingAcceptance(dir: string, _p: Proposal): string[] {
   if (v.all_gating_passed !== true) {
     errors.push('verify.json: all_gating_passed is not true (gating checks failed without waiver)');
   }
+  // Path B: an un-waived CRITICAL spec-review finding is a hard gate, even if
+  // all_gating_passed is stale (e.g. review recorded after last `verify run`).
+  const crit = v.spec_review?.findings?.filter(f => f.level === 'CRITICAL' && !f.waived) ?? [];
+  if (crit.length > 0) {
+    errors.push(`spec_review: ${crit.length} un-waived CRITICAL finding(s) — fix or waive before advancing`);
+  }
   return errors;
 }
 

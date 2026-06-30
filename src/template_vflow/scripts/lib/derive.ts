@@ -79,6 +79,18 @@ export function deriveReviewMd(dir: string, proposal: Proposal): string {
       lines.push(`- **${r.id}:** ${r.passed ? 'PASS' : 'FAIL'} — ${r.evidence}${r.waiver ? ` (waiver: ${r.waiver})` : ''}`);
     }
     lines.push('');
+    const sr = verify.spec_review;
+    if (sr && sr.findings.length) {
+      lines.push('### Spec Review (completeness / correctness / consistency)');
+      lines.push('');
+      lines.push(`Scope: ${sr.scope_files.length} files`);
+      lines.push('');
+      for (const f of sr.findings) {
+        const loc = `${f.file}${f.line ? `:${f.line}` : ''}`;
+        lines.push(`- **${f.level}** [${f.dimension}] ${loc}: ${f.issue}${f.spec_ref ? ` (${f.spec_ref})` : ''}${f.waived ? ' — waived' : ''}`);
+      }
+      lines.push('');
+    }
   }
 
   lines.push('## Event Timeline');
@@ -136,23 +148,50 @@ export function archiveProposal(dir: string, proposal: Proposal, html: boolean):
   console.log(`Archived ${proposal.id} to ${dest}`);
 }
 
+// Knowledge writeback (path B): organize candidates under the four spec
+// categories — Convention / Pattern / Forbidden / Gotcha — and point each at a
+// target spec file. The AI refines these and runs `knowledge save` per entry.
+// Target-file rule mirrors the old spec skill: common/ for language-agnostic
+// principles, lang/<language>.md for language-specific, modules/ for feature
+// (qt/embedded/...), domain/<topic>.md for project domain knowledge.
 export function knowledgeSuggest(dir: string): string[] {
   const design = readArtifact<DesignArtifact>(dir, 'design');
   const verify = readArtifact<VerifyArtifact>(dir, 'verify');
-  const events = readEvents(dir);
-  const candidates: string[] = [];
+  const entries: string[] = [];
 
   if (design) {
     for (const d of design.decisions) {
-      candidates.push(`Decision: ${d.decision} — ${d.rationale}`);
+      entries.push(`[Pattern?] Decision ${d.id}: ${d.decision} — ${d.rationale} → target: <pick spec file>`);
     }
   }
   if (verify) {
     for (const r of verify.results) {
       if (!r.passed && r.waiver) {
-        candidates.push(`Known risk: ${r.evidence} (waiver: ${r.waiver})`);
+        entries.push(`[Gotcha?] Known risk: ${r.evidence} (waiver: ${r.waiver}) → target: domain/ or lang/`);
+      }
+    }
+    const sr = verify.spec_review;
+    if (sr && sr.findings.length) {
+      for (const f of sr.findings) {
+        // A consistency violation against an existing spec usually reinforces a
+        // Convention/Forbidden rule; surface it so the rule can be strengthened.
+        const cat = f.dimension === 'consistency' ? 'Convention/Forbidden?' : 'Pattern/Gotcha?';
+        const ref = f.spec_ref ? ` (existing: ${f.spec_ref})` : '';
+        entries.push(`[${cat}] Review ${f.level} on ${f.file}: ${f.issue}${ref} → target: <pick spec file>`);
       }
     }
   }
-  return candidates;
+
+  // Nothing learned worth capturing → empty, so `knowledge suggest` auto-skips.
+  if (entries.length === 0) return [];
+
+  // Prepend the four-category guidance so the AI organizes entries correctly.
+  return [
+    'Classify each entry into one category and pick a target spec file under .vflow/spec/:',
+    '  - Convention (naming/format/structure agreement) | Pattern (verified approach)',
+    '  - Forbidden (banned practice) | Gotcha (counter-intuitive trap)',
+    '  - Target: common/ (principle) · lang/<language>.md · modules/ (qt/embedded) · domain/<topic>.md',
+    '',
+    ...entries,
+  ];
 }

@@ -108,10 +108,15 @@ All execution items complete. Run verification checks.
 **Actions:**
 1. Execute each check from the verify plan
 2. Record results: `node .vflow/scripts/dist/proposal.js verify run`
-3. If all gating checks pass → advance to pending_acceptance
-4. If gating checks fail → back to execution with items reopened
+3. **Spec review (if `.vflow/spec/` exists):** perform a three-dimensional review of the files this proposal changed (`git diff` of the execution work) against the relevant spec conventions:
+   - **completeness** — are all planned changes and promised tests actually done?
+   - **correctness** — does it meet the analysis/acceptance criteria; are edge cases handled?
+   - **consistency** — does it violate any spec entry? Grade each finding CRITICAL / WARNING / SUGGESTION (cite file:line + spec entry).
+   Write the findings into `verify.json` under `spec_review` (`scope_files` + graded `findings`), then run `node .vflow/scripts/dist/proposal.js verify review`. An un-waived **CRITICAL** finding forces `all_gating_passed=false` (gating fail).
+4. If all gating checks pass (and no un-waived CRITICAL) → advance to pending_acceptance
+5. If gating checks fail → back to execution with items reopened
 
-**Gate to pending_acceptance:** verify.json `all_gating_passed` must be `true`.
+**Gate to pending_acceptance:** verify.json `all_gating_passed` must be `true` and no un-waived CRITICAL spec-review finding.
 
 **On failure:** `node .vflow/scripts/dist/proposal.js back --to execution` (reopen failed items)
 
@@ -135,7 +140,12 @@ User accepted. Ready for archival.
 
 **Actions:**
 1. Archive the proposal (generates review.md from structured history)
-2. Optionally extract knowledge candidates
+2. Extract knowledge candidates and write back to the spec library. Run `knowledge suggest` — it organizes candidates under the four categories. Classify each kept entry and pick a target spec file under `.vflow/spec/`:
+   - **Convention** — naming/format/structure agreement
+   - **Pattern** — verified implementation approach
+   - **Forbidden** — explicitly banned practice
+   - **Gotcha** — counter-intuitive trap
+   Target file: `common/` (language-agnostic principle) · `lang/<language>.md` (language-specific) · `modules/` (qt/embedded/...) · `domain/<topic>.md` (project domain knowledge). Persist each with `knowledge save`, or `knowledge skip` if nothing is worth keeping.
 
 Command: `node .vflow/scripts/dist/proposal.js archive [--html]`
 Knowledge: `node .vflow/scripts/dist/proposal.js knowledge suggest`

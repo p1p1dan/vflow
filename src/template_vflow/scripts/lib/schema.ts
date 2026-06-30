@@ -80,10 +80,32 @@ export interface VerifyResult {
   waiver?: string;
 }
 
+// Three-dimensional spec review (path B): AI compares execution-changed files
+// against .vflow/spec/ and records graded findings. An un-waived CRITICAL gates.
+export type SpecReviewLevel = 'CRITICAL' | 'WARNING' | 'SUGGESTION';
+export type SpecReviewDimension = 'completeness' | 'correctness' | 'consistency';
+
+export interface SpecReviewFinding {
+  level: SpecReviewLevel;
+  dimension: SpecReviewDimension;
+  file: string;
+  line?: number;
+  issue: string;
+  spec_ref?: string;
+  waived?: boolean;
+}
+
+export interface SpecReview {
+  reviewed: boolean;
+  scope_files: string[];
+  findings: SpecReviewFinding[];
+}
+
 export interface VerifyArtifact {
   results: VerifyResult[];
   all_gating_passed: boolean;
   verify_round?: number;
+  spec_review?: SpecReview;
 }
 
 export interface AnalysisArtifact {
@@ -127,6 +149,7 @@ export type EventType =
   | 'archived'
   | 'knowledge_saved'
   | 'verify_result_recorded'
+  | 'spec_review_recorded'
   | 'gate_bypassed'
   | 'design_confirmed';
 

@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "node --test ../tests/proposal-*.test.mjs"
+    "test": "node --test --test-concurrency=1 ../tests/proposal-*.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",

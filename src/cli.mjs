@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -51,6 +51,15 @@ const MANAGED_DIRS = ['scripts/dist'];
 const MERGE_DIRS = ['spec'];
 const COPY_IF_ABSENT = ['config.json'];
 
+// Project-level methodology skills copied into .claude/skills/ (the only path
+// Claude Code auto-discovers/triggers). Source: template_claude/skills/<name>/.
+// These KEEP the vflow- prefix on purpose, so they must NOT appear in any
+// OLD_*_SKILLS cleanup list (see cleanOldVersion) — else init/update would
+// install then immediately delete them. A test pins MANAGED ∩ OLD = ∅.
+const MANAGED_CLAUDE_SKILLS = [
+  'vflow-think', 'vflow-brainstorm', 'vflow-debug', 'vflow-commit',
+];
+
 const GITIGNORE_LINES = [
   '.vflow/proposals/',
   '.vflow/runtime/',
@@ -73,11 +82,14 @@ const PROJECT_HOOKS = {
   UserPromptSubmit: projectHookCmd('prompt'),
 };
 
-// v0.x skills to clean from .claude/skills/
+// v0.x skills to clean from .claude/skills/.
+// NOTE: vflow-think/brainstorm/debug/commit are intentionally absent — they are
+// now MANAGED_CLAUDE_SKILLS (kept, reinstalled every init/update). Do not add
+// them back here or cleanup will delete freshly-installed skills.
 const OLD_CLAUDE_SKILLS = [
-  'vflow-go', 'vflow-continue', 'vflow-commit', 'vflow-context',
-  'vflow-brainstorm', 'vflow-code', 'vflow-test', 'vflow-review',
-  'vflow-debug', 'vflow-think', 'vflow-spec', 'vflow-docs', 'vflow-meta',
+  'vflow-go', 'vflow-continue', 'vflow-context',
+  'vflow-code', 'vflow-test', 'vflow-review',
+  'vflow-spec', 'vflow-docs', 'vflow-meta',
   'vflow-execute', 'codex-review', 'context-resume', 'context-save',
   'vflow-task', 'vflow-quick',
 ];
@@ -96,12 +108,13 @@ const OLD_TEMPLATES = [
   'templates/quick-entry.md', 'templates/plan.md',
 ];
 
-// v0.x old .vflow/skills/
+// v0.x old .vflow/skills/.
+// NOTE: vflow-think/brainstorm/debug/commit intentionally absent — kept as
+// MANAGED_CLAUDE_SKILLS (installed to .claude/skills/, not .vflow/skills/).
 const OLD_VFLOW_SKILLS = [
-  'skills/vflow-task', 'skills/vflow-quick', 'skills/vflow-brainstorm',
+  'skills/vflow-task', 'skills/vflow-quick',
   'skills/vflow-code', 'skills/vflow-test', 'skills/vflow-review',
-  'skills/vflow-debug', 'skills/vflow-think', 'skills/vflow-spec',
-  'skills/vflow-docs', 'skills/vflow-meta',
+  'skills/vflow-spec', 'skills/vflow-docs', 'skills/vflow-meta',
 ];
 
 // --- Utilities ---
@@ -378,6 +391,21 @@ function installClaudeMd(dstRoot) {
   }
 }
 
+function installClaudeSkills(dstRoot) {
+  const srcSkills = path.join(SRC_CLAUDE, 'skills');
+  if (!fs.existsSync(srcSkills)) return;
+  const dstSkills = path.join(dstRoot, '.claude', 'skills');
+  let installed = 0;
+  for (const name of MANAGED_CLAUDE_SKILLS) {
+    const src = path.join(srcSkills, name);
+    if (!fs.existsSync(src)) continue;
+    safeRmDir(path.join(dstSkills, name)); // always overwrite (managed)
+    copytreeSync(src, path.join(dstSkills, name));
+    installed++;
+  }
+  if (installed > 0) console.log(`  [写入] .claude/skills/（${installed} 个项目级 skill）`);
+}
+
 function installProjectHooks(dstRoot) {
   const cl = path.join(dstRoot, '.claude');
   fs.mkdirSync(cl, { recursive: true });
@@ -560,6 +588,7 @@ async function doInstall(dst, { update = false, spec = false, yes = false, recon
     fs.copyFileSync(rulesSrc, path.join(rulesDst, 'proposal-truth.md'));
     console.log('  [写入] .claude/rules/proposal-truth.md');
   }
+  installClaudeSkills(dst);
   installProjectHooks(dst);
 
   appendGitignore(dst);
@@ -680,7 +709,14 @@ async function main() {
   return 1;
 }
 
-main().then((code) => process.exit(code || 0)).catch((err) => {
-  console.error(err?.message || err);
-  process.exit(1);
-});
+// Run as CLI only when invoked directly (not when imported by tests).
+const invokedDirectly = process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) {
+  main().then((code) => process.exit(code || 0)).catch((err) => {
+    console.error(err?.message || err);
+    process.exit(1);
+  });
+}
+
+export { MANAGED_CLAUDE_SKILLS, OLD_CLAUDE_SKILLS, OLD_VFLOW_SKILLS };

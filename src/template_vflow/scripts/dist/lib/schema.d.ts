@@ -60,10 +60,27 @@ export interface VerifyResult {
     evidence: string;
     waiver?: string;
 }
+export type SpecReviewLevel = 'CRITICAL' | 'WARNING' | 'SUGGESTION';
+export type SpecReviewDimension = 'completeness' | 'correctness' | 'consistency';
+export interface SpecReviewFinding {
+    level: SpecReviewLevel;
+    dimension: SpecReviewDimension;
+    file: string;
+    line?: number;
+    issue: string;
+    spec_ref?: string;
+    waived?: boolean;
+}
+export interface SpecReview {
+    reviewed: boolean;
+    scope_files: string[];
+    findings: SpecReviewFinding[];
+}
 export interface VerifyArtifact {
     results: VerifyResult[];
     all_gating_passed: boolean;
     verify_round?: number;
+    spec_review?: SpecReview;
 }
 export interface AnalysisArtifact {
     problem: string;
@@ -84,7 +101,7 @@ export interface PlanArtifact {
     execution_outline: string;
     verify_plan: VerifyPlan;
 }
-export type EventType = 'proposal_created' | 'stage_changed' | 'lifecycle_changed' | 'blocking_changed' | 'tier_changed' | 'type_changed' | 'item_added' | 'item_status_changed' | 'item_cancelled' | 'plan_adjusted' | 'user_confirmation' | 'waiver_granted' | 'verify_completed' | 'acceptance' | 'archived' | 'knowledge_saved' | 'verify_result_recorded' | 'gate_bypassed' | 'design_confirmed';
+export type EventType = 'proposal_created' | 'stage_changed' | 'lifecycle_changed' | 'blocking_changed' | 'tier_changed' | 'type_changed' | 'item_added' | 'item_status_changed' | 'item_cancelled' | 'plan_adjusted' | 'user_confirmation' | 'waiver_granted' | 'verify_completed' | 'acceptance' | 'archived' | 'knowledge_saved' | 'verify_result_recorded' | 'spec_review_recorded' | 'gate_bypassed' | 'design_confirmed';
 export interface VflowEvent {
     ts: string;
     type: EventType;

@@ -10,7 +10,7 @@ import { STAGES } from './lib/schema.js';
 import type {
   Proposal, Stage, LifecycleStatus, ProposalType, Tier, ItemStatus,
   ExecutionArtifact, ExecutionItem, VflowEvent, RepoIndexEntry,
-  AnalysisArtifact, DesignArtifact, PlanArtifact, VerifyArtifact,
+  AnalysisArtifact, DesignArtifact, PlanArtifact, VerifyArtifact, SpecReview,
 } from './lib/schema.js';
 import {
   nextProposalId, proposalDir, findProposalDir,
@@ -450,6 +450,13 @@ function cmdExecution(sub: string | undefined, positional: string[], flags: Reco
   }
 }
 
+// Path B: an un-waived CRITICAL spec-review finding blocks gating.
+function hasBlockingSpecReview(verify: VerifyArtifact): boolean {
+  const sr = verify.spec_review;
+  if (!sr || !sr.findings) return false;
+  return sr.findings.some(f => f.level === 'CRITICAL' && !f.waived);
+}
+
 function cmdVerifyRun(flags: Record<string, string>): void {
   const resolved = resolveProposal(flags);
   if (!resolved) return;
@@ -483,7 +490,7 @@ function cmdVerifyRun(flags: Record<string, string>): void {
   const allGatingPassed = gatingChecks.every(c => {
     const r = verify.results.find(res => res.id === c.id);
     return (r && r.passed) || waiverIds.has(c.id);
-  });
+  }) && !hasBlockingSpecReview(verify);
   verify.all_gating_passed = allGatingPassed;
   writeArtifact(dir, 'verify', verify);
 
@@ -494,6 +501,13 @@ function cmdVerifyRun(flags: Record<string, string>): void {
     for (const r of pending) {
       const isGating = gatingIds.has(r.id) ? ' [GATING]' : '';
       console.log(`  - ${r.id}${isGating}: ${r.evidence || '(no evidence)'}`);
+    }
+  }
+  if (hasBlockingSpecReview(verify)) {
+    const crit = verify.spec_review!.findings.filter(f => f.level === 'CRITICAL' && !f.waived);
+    console.log(`Spec review: ${crit.length} un-waived CRITICAL finding(s) [GATING]:`);
+    for (const f of crit) {
+      console.log(`  - ${f.file}${f.line ? `:${f.line}` : ''} (${f.dimension}): ${f.issue}${f.spec_ref ? ` [${f.spec_ref}]` : ''}`);
     }
   }
   appendEvent(dir, { ts: isoNow(), type: 'verify_completed', detail: `all_gating_passed=${allGatingPassed}` });
@@ -532,7 +546,7 @@ function cmdVerifyCheck(flags: Record<string, string>): void {
       .every(c => {
         const r = verify.results.find(res => res.id === c.id);
         return (r && r.passed) || waiverIds.has(c.id);
-      });
+      }) && !hasBlockingSpecReview(verify);
   }
 
   writeArtifact(dir, 'verify', verify);
@@ -575,7 +589,7 @@ async function cmdVerifyWaive(flags: Record<string, string>): Promise<void> {
       .every(c => {
         const r = verify.results.find(res => res.id === c.id);
         return (r && r.passed) || waiverIds.has(c.id);
-      });
+      }) && !hasBlockingSpecReview(verify);
   }
 
   writeArtifact(dir, 'verify', verify);
@@ -587,6 +601,61 @@ async function cmdVerifyWaive(flags: Record<string, string>): Promise<void> {
   });
   console.log(`Waiver granted for ${checkId}: ${reason}`);
   console.log(`all_gating_passed=${verify.all_gating_passed}`);
+}
+
+// Path B: record/recompute the three-dimensional spec review. The AI writes
+// verify.json's `spec_review` block (scope_files + graded findings) directly,
+// then runs this to mark it reviewed, recompute gating, and print a summary.
+// An un-waived CRITICAL finding forces all_gating_passed=false.
+function cmdVerifyReview(flags: Record<string, string>): void {
+  const resolved = resolveProposal(flags);
+  if (!resolved) return;
+  const { dir } = resolved;
+
+  const verify = readArtifact<VerifyArtifact>(dir, 'verify');
+  if (!verify) { console.log('No verify.json. Run `verify run` first to create skeleton.'); return; }
+
+  if (!verify.spec_review) {
+    console.log('No spec_review block in verify.json. Add it first, e.g.:');
+    console.log('  "spec_review": { "reviewed": true, "scope_files": ["a.ts"],');
+    console.log('    "findings": [{ "level": "CRITICAL", "dimension": "consistency",');
+    console.log('      "file": "a.ts", "line": 42, "issue": "...", "spec_ref": "cpp.md#57" }] }');
+    console.log('Levels: CRITICAL|WARNING|SUGGESTION. Dimensions: completeness|correctness|consistency.');
+    return;
+  }
+
+  const sr: SpecReview = verify.spec_review;
+  sr.reviewed = true;
+
+  // Recompute gating from plan checks + spec review.
+  const plan = readArtifact<PlanArtifact>(dir, 'plan');
+  if (plan?.verify_plan) {
+    const events = readEvents(dir);
+    const currentRound = verify.verify_round ?? 1;
+    const waiverIds = new Set(events.filter(e => e.type === 'waiver_granted' && (e.verify_round ?? 1) >= currentRound).map(e => e.item_id));
+    verify.all_gating_passed = plan.verify_plan.checks
+      .filter(c => c.gating)
+      .every(c => {
+        const r = verify.results.find(res => res.id === c.id);
+        return (r && r.passed) || waiverIds.has(c.id);
+      }) && !hasBlockingSpecReview(verify);
+  }
+  writeArtifact(dir, 'verify', verify);
+
+  const counts = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+  for (const f of sr.findings) counts[f.level]++;
+  const unwaivedCrit = sr.findings.filter(f => f.level === 'CRITICAL' && !f.waived).length;
+  appendEvent(dir, {
+    ts: isoNow(), type: 'spec_review_recorded',
+    detail: `files=${sr.scope_files.length},CRITICAL=${counts.CRITICAL},WARNING=${counts.WARNING},SUGGESTION=${counts.SUGGESTION},unwaived_critical=${unwaivedCrit}`,
+    verify_round: verify.verify_round ?? 1,
+  });
+  console.log(`Spec review recorded: ${sr.scope_files.length} files | ${counts.CRITICAL} CRITICAL / ${counts.WARNING} WARNING / ${counts.SUGGESTION} SUGGESTION`);
+  if (unwaivedCrit > 0) {
+    console.log(`${unwaivedCrit} un-waived CRITICAL → all_gating_passed=false (gating). Fix or waive before advancing.`);
+  } else {
+    console.log(`No un-waived CRITICAL. all_gating_passed=${verify.all_gating_passed}`);
+  }
 }
 
 async function cmdAccept(flags: Record<string, string>): Promise<void> {
@@ -758,7 +827,8 @@ switch (cmd) {
     if (sub === 'run') cmdVerifyRun(flags);
     else if (sub === 'check') cmdVerifyCheck(flags);
     else if (sub === 'waive') cmdVerifyWaive(flags).catch(console.error);
-    else console.log('Usage: verify <run|check|waive>');
+    else if (sub === 'review') cmdVerifyReview(flags);
+    else console.log('Usage: verify <run|check|waive|review>');
     break;
   }
   case 'accept': cmdAccept(flags).catch(console.error); break;

@@ -47,6 +47,7 @@ node .vflow/scripts/dist/proposal.js execution complete-item --item E-001 --evid
 ### Verification and acceptance
 ```bash
 node .vflow/scripts/dist/proposal.js verify run
+node .vflow/scripts/dist/proposal.js verify review    # record 3-D spec review (if .vflow/spec/ exists); un-waived CRITICAL gates
 node .vflow/scripts/dist/proposal.js confirm-design    # T3 only, user confirms design before plan
 node .vflow/scripts/dist/proposal.js accept             # user only
 node .vflow/scripts/dist/proposal.js archive [--html]
