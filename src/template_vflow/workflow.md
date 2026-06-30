@@ -50,6 +50,8 @@ Analysis complete. Now produce design decisions.
 2. Use the Write tool to author `proposals/<id>/design.json` (decisions array), copying the field shape from `.vflow/templates/proposal/design.json`.
 3. For T3: present the design decisions to the user; after they approve in-conversation, run `node .vflow/scripts/dist/proposal.js confirm-design --user-approved`.
 
+**Decision ownership:** Decisions involving spec definitions, system boundaries, or tech-stack choices are **user-owned** — present your analysis and trade-offs, then wait for user direction before advancing. Record every key decision with its rationale in design.json so the choices are traceable. AI-inferred decisions are acceptable only for implementation details within an already-approved design.
+
 **Gate to design:** design.json must have ≥1 decision entry.
 
 Command: `node .vflow/scripts/dist/proposal.js advance`
@@ -96,6 +98,8 @@ Executing. Work through items serially (one `doing` at a time).
 **Guardrails:**
 - If goal/scope/risk/approach changes significantly → stop, confirm with user
 - If major new problem discovered → `node .vflow/scripts/dist/proposal.js back --to design`
+- **PR granularity:** Each execution item must produce a diff the user can fully read and understand in one sitting. If an item would touch too many files or lines, split it into smaller items before starting.
+- **Rubber duck:** When completing each item, explain in plain terms what the code does, what problem it solves, and any trade-off made — aim for the level of a Slack message to a teammate.
 
 **Gate to verify:** All items must be `done` or `cancelled`.
 

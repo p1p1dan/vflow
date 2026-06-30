@@ -37,6 +37,7 @@
 | modules/embedded.md | `"embedded": true` | 嵌入式 C：g前缀全局、volatile、GNU C 特性 | 12 |
 | modules/qt.md | `"qt": true` | 占位（待起草：信号槽/父子所有权/UI线程） | - |
 | modules/bindings.md | `"binding": ...` | 占位（首个封装任务起草） | - |
+| common/verification-first.md | `"ai_system": true` | 验证先行开发规范：AI/LLM 系统可观测性、分层验证、回归资产沉淀、工作流顺序 | 14 |
 
 ## 项目领域规范（domain/ · 知识回写主要落点）
 
