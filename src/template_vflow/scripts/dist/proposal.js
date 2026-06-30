@@ -9,7 +9,15 @@ import { nextProposalId, proposalDir, findProposalDir, readProposal, writePropos
 import { canAdvance, canArchive, nextStage, canTransitionItem, canBack, } from './lib/checks.js';
 import { resolveCliProposalId, bindSession, resolveSessionKey, readLastActiveSession, updateSessionExecutionItem, updateSessionConfirmation, } from './lib/session-runtime.js';
 // --- Arg parsing ---
-async function confirmByUser(prompt) {
+// 用户验收闸门。三条通道(优先级从高到低):
+// 1. userApproved=true —— AI 在对话内已取得用户明确同意,转达执行(caller 把事件
+//    from 记成 ai_relay,留痕可审计)。这是 AI 的正路:先暂停汇报征询,拿到用户对话
+//    同意后带 --user-approved 重跑,而不是傻乎乎让用户滚去命令行自己敲。
+// 2. TTY 交互 yes/no —— 用户自己在终端跑命令时亲自确认。
+// 3. 非 TTY 读 stdin —— 测试/CI 与高级用户用管道喂 "yes" 的通道。
+async function confirmByUser(prompt, userApproved = false) {
+    if (userApproved)
+        return true;
     if (process.stdin.isTTY) {
         const rl = createInterface({ input: process.stdin, output: process.stdout });
         const answer = await new Promise(resolve => {
@@ -617,9 +625,10 @@ async function cmdVerifyWaive(flags) {
         console.log(`Check '${checkId}' already passed — no waiver needed.`);
         return;
     }
-    if (!await confirmByUser(`Waive check ${checkId}? Reason: ${reason}`)) {
+    const userApproved = flags['user-approved'] === 'true';
+    if (!await confirmByUser(`Waive check ${checkId}? Reason: ${reason}`, userApproved)) {
         console.log('REJECTED: waiver must be confirmed by user.');
-        console.log('AI cannot independently waive checks. The user must run this command directly.');
+        console.log('AI: 先向用户说明为何要豁免该检查并征询;用户对话内同意后重跑 `verify waive --check ... --reason ... --user-approved`。');
         return;
     }
     result.waiver = reason;
@@ -637,7 +646,7 @@ async function cmdVerifyWaive(flags) {
         }) && !hasBlockingSpecReview(verify);
     }
     writeArtifact(dir, 'verify', verify);
-    const via = process.stdin.isTTY ? 'tty_prompt' : 'stdin_pipe';
+    const via = userApproved ? 'ai_relay' : (process.stdin.isTTY ? 'tty_prompt' : 'stdin_pipe');
     appendEvent(dir, {
         ts: isoNow(), type: 'waiver_granted', item_id: checkId,
         detail: `reason=${reason},confirmed_by_user=true,via=${via}`,
@@ -710,12 +719,13 @@ async function cmdAccept(flags) {
         console.log(`Cannot accept: proposal is at '${proposal.stage}', expected 'pending_acceptance'.`);
         return;
     }
-    if (!await confirmByUser(`Accept proposal ${proposal.id} "${proposal.title}"?`)) {
+    const userApproved = flags['user-approved'] === 'true';
+    if (!await confirmByUser(`Accept proposal ${proposal.id} "${proposal.title}"?`, userApproved)) {
         console.log('REJECTED: accept must be confirmed by user.');
-        console.log('AI cannot independently accept proposals. The user must run this command directly.');
+        console.log('AI: 先暂停,向用户汇报【目标/现状/差异/验证结果/风险】并征询;用户在对话内明确同意后,重跑 `accept --user-approved`(事件留痕 ai_relay)。用户亦可自行在终端运行 `accept` 交互确认。');
         return;
     }
-    const via = process.stdin.isTTY ? 'tty_prompt' : 'stdin_pipe';
+    const via = userApproved ? 'ai_relay' : (process.stdin.isTTY ? 'tty_prompt' : 'stdin_pipe');
     const verify = readArtifact(dir, 'verify');
     const round = verify?.verify_round ?? 1;
     appendEvent(dir, { ts: isoNow(), type: 'acceptance', detail: 'confirmed_by_user:true', from: via, verify_round: round });
@@ -770,11 +780,12 @@ async function cmdConfirmDesign(flags) {
     for (const d of design.decisions) {
         console.log(`  ${d.id}: ${d.decision} — ${d.rationale}`);
     }
-    if (!await confirmByUser(`Confirm design for T3 proposal ${proposal.id}?`)) {
-        console.log('Design confirmation cancelled.');
+    const userApproved = flags['user-approved'] === 'true';
+    if (!await confirmByUser(`Confirm design for T3 proposal ${proposal.id}?`, userApproved)) {
+        console.log('Design confirmation cancelled. AI: 先向用户呈现设计决策并征询;用户对话内同意后重跑 `confirm-design --user-approved`。');
         return;
     }
-    const via = process.stdin.isTTY ? 'tty_prompt' : 'stdin_pipe';
+    const via = userApproved ? 'ai_relay' : (process.stdin.isTTY ? 'tty_prompt' : 'stdin_pipe');
     const designContent = readFileSync(join(dir, 'design.json'), 'utf-8');
     const designHash = createHash('sha256').update(designContent).digest('hex');
     appendEvent(dir, { ts: isoNow(), type: 'design_confirmed', detail: `confirmed_by_user:true,via=${via},design_hash=${designHash}` });

@@ -43,7 +43,6 @@ const MANAGED_VFLOW = [
   'templates/proposal/plan.json',
   'templates/proposal/review.md',
   'templates/proposal/verify.json',
-  'skills/vflow-proposal/SKILL.md',
   'tests/proposal-lifecycle.test.mjs',
 ];
 
@@ -58,6 +57,7 @@ const COPY_IF_ABSENT = ['config.json'];
 // install then immediately delete them. A test pins MANAGED ∩ OLD = ∅.
 const MANAGED_CLAUDE_SKILLS = [
   'vflow-think', 'vflow-brainstorm', 'vflow-debug', 'vflow-commit',
+  'vflow-proposal',
 ];
 
 const GITIGNORE_LINES = [
@@ -309,6 +309,12 @@ function cleanOldVersion(dst) {
     const p = path.join(vf, rel);
     if (fs.existsSync(p)) { safeRmDir(p); cleaned++; console.log(`  [cleanup] .vflow/${rel}/`); }
   }
+
+  // Migration: vflow-proposal moved .vflow/skills/ → .claude/skills/ (now a
+  // triggerable project skill). Remove the stale .vflow copy so update doesn't
+  // leave a dead, non-discoverable duplicate behind.
+  const movedProposal = path.join(vf, 'skills', 'vflow-proposal');
+  if (fs.existsSync(movedProposal)) { safeRmDir(movedProposal); cleaned++; console.log('  [cleanup] .vflow/skills/vflow-proposal/ (moved to .claude/skills/)'); }
 
   // Old templates
   for (const rel of OLD_TEMPLATES) {
@@ -719,4 +725,4 @@ if (invokedDirectly) {
   });
 }
 
-export { MANAGED_CLAUDE_SKILLS, OLD_CLAUDE_SKILLS, OLD_VFLOW_SKILLS };
+export { MANAGED_CLAUDE_SKILLS, OLD_CLAUDE_SKILLS, OLD_VFLOW_SKILLS, MANAGED_VFLOW };

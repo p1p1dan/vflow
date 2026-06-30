@@ -17,10 +17,20 @@ const CLAUDE_SKILLS_SRC = join(__dirname, '..', '..', 'template_claude', 'skills
 const cli = await import(pathToFileURL(CLI_MJS).href);
 
 describe('vflow2 path A — managed project skills', () => {
-  test('1. MANAGED_CLAUDE_SKILLS has the 4 kept skills', () => {
+  test('1. MANAGED_CLAUDE_SKILLS has the kept skills + vflow-proposal', () => {
     assert.deepEqual(
       [...cli.MANAGED_CLAUDE_SKILLS].sort(),
-      ['vflow-brainstorm', 'vflow-commit', 'vflow-debug', 'vflow-think'],
+      ['vflow-brainstorm', 'vflow-commit', 'vflow-debug', 'vflow-proposal', 'vflow-think'],
+    );
+  });
+
+  test('1b. vflow-proposal migrated from .vflow/skills to .claude/skills (triggerable)', () => {
+    // It must be a managed project skill (discoverable/triggerable by Claude Code)...
+    assert.ok(cli.MANAGED_CLAUDE_SKILLS.includes('vflow-proposal'));
+    // ...and must NOT still be shipped as a passive .vflow/skills file.
+    assert.ok(
+      !cli.MANAGED_VFLOW.includes('skills/vflow-proposal/SKILL.md'),
+      'vflow-proposal must not remain in MANAGED_VFLOW after migration',
     );
   });
 

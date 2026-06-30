@@ -36,6 +36,14 @@ function injectSession() {
             lines.push(`\nCurrent: ${activeProposals[0].id} — ${activeProposals[0].title}`);
         }
     }
+    // Workflow overview — hand the AI the full process map up-front so it doesn't
+    // reverse-engineer the lifecycle mid-task (root cause of the "边做边猜" problem).
+    // Single source: workflow.md [workflow-state:overview]. DRY.
+    const overview = extractWorkflowBlock('overview');
+    if (overview) {
+        lines.push('');
+        lines.push(overview);
+    }
     // Spec index
     const specIndex = join(SPEC_DIR, 'index.md');
     if (existsSync(specIndex)) {

@@ -32,7 +32,7 @@ Proposal created. Record the user's original request clearly.
 
 **Actions:**
 1. Understand what the user wants
-2. Write analysis.json (problem statement, scope, constraints, investigation)
+2. Use the Write tool to author `proposals/<id>/analysis.json` (problem, scope, constraints, investigation), copying the field shape from `.vflow/templates/proposal/analysis.json`. Artifacts are hand-written JSON — there is no scaffolding command.
 3. Advance when ready
 
 **Gate to analysis:** analysis.json must have non-empty `problem` and `scope`.
@@ -47,8 +47,8 @@ Analysis complete. Now produce design decisions.
 
 **Actions:**
 1. Identify key design decisions, alternatives, and tradeoffs
-2. Write design.json with decisions array
-3. For T3: present design to user and get explicit confirmation: `node .vflow/scripts/dist/proposal.js confirm-design`
+2. Use the Write tool to author `proposals/<id>/design.json` (decisions array), copying the field shape from `.vflow/templates/proposal/design.json`.
+3. For T3: present the design decisions to the user; after they approve in-conversation, run `node .vflow/scripts/dist/proposal.js confirm-design --user-approved`.
 
 **Gate to design:** design.json must have ≥1 decision entry.
 
@@ -63,7 +63,7 @@ Design decisions recorded. Now build the execution plan.
 **Actions:**
 1. Break down implementation into execution items (ordered, with dependencies)
 2. Define verification checks (which are gating?)
-3. Write plan.json
+3. Use the Write tool to author `proposals/<id>/plan.json` (execution_outline + verify_plan.checks), copying the field shape from `.vflow/templates/proposal/plan.json`.
 
 **Gate to plan:** plan.json must have non-empty `execution_outline` and at least 1 verify check.
 
@@ -124,15 +124,16 @@ Command: `node .vflow/scripts/dist/proposal.js advance`
 
 [workflow-state:pending_acceptance]
 
-Technical work and verification complete. Present results to user for acceptance.
+Technical work and verification complete. PAUSE and hand off to the user — do not proceed silently.
 
 **Actions:**
-1. Summarize what was done, verification results, and any known risks
-2. Wait for user to explicitly accept
+1. Report to the user: goal / current state / diff-from-goal / verification results / known risks.
+2. Explicitly ask whether the result meets their requirements.
+3. ONLY after the user approves in this conversation, relay the acceptance:
+   `node .vflow/scripts/dist/proposal.js accept --user-approved`
+   (the event is logged with `from=ai_relay` — auditable). Then proceed to archive.
 
-**IMPORTANT:** AI cannot advance past this stage. Only the user can accept.
-
-Command (user only): `node .vflow/scripts/dist/proposal.js accept`
+**Guardrail:** Never run `accept --user-approved` without first reporting AND getting the user's explicit in-conversation approval. The user may also accept themselves in a terminal: `node .vflow/scripts/dist/proposal.js accept` (interactive yes/no).
 
 [workflow-state:done]
 
@@ -149,3 +150,20 @@ User accepted. Ready for archival.
 
 Command: `node .vflow/scripts/dist/proposal.js archive [--html]`
 Knowledge: `node .vflow/scripts/dist/proposal.js knowledge suggest`
+
+[workflow-state:overview]
+
+vflow2 drives every non-trivial code change through a proposal lifecycle. Read this map BEFORE acting — do not reverse-engineer the process mid-task.
+
+Pipeline: intake → analysis → design → plan → execution → verify → pending_acceptance → done → archived
+
+Tier: T0 = pure Q&A, NO proposal (answer directly). T1 = small local change, fast path. T2 = standard feature/fix. T3 = architecture/core/high-risk (design must be confirmed before plan).
+
+BEFORE touching code: if the request is T1+, create the proposal FIRST, then analyze. Do NOT free-run analysis/edits without a proposal.
+  `node .vflow/scripts/dist/proposal.js create <slug> --title "..." --type <bug|feature|refactor|reference_build> --tier <T1|T2|T3>`
+
+Artifacts are hand-written JSON — there is NO scaffolding command. At each stage, use the Write tool to author `proposals/<id>/<name>.json` (analysis / design / plan / execution / verify), copying the field shape from `.vflow/templates/proposal/<name>.json`. Write the file, then `advance`.
+
+Acceptance (pending_acceptance): the AI PAUSES and reports goal / current state / diff-from-goal / verification results / risks, then asks the user. After the user approves in-conversation, the AI runs `accept --user-approved` (logged as ai_relay). The user may also accept themselves in a terminal. Same pattern for T3 `confirm-design --user-approved` and `verify waive --user-approved`.
+
+Full step-by-step guide: the `/vflow-proposal` skill.

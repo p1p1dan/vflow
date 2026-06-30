@@ -18,7 +18,7 @@ node .vflow/scripts/dist/proposal.js <command>
 1. **proposal.stage** is the single source of truth for lifecycle progress
 2. **execution.items[].status** is the single source of truth for execution progress
 3. Session runtime is hint-only — never overwrites proposal truth
-4. AI cannot advance past `pending_acceptance` — only user `accept` moves to `done`
+4. At `pending_acceptance` the AI PAUSES, reports goal / current state / diff-from-goal / verification results / risks, and asks the user. Only after in-conversation approval does the AI run `accept --user-approved` (event logged `from=ai_relay`, auditable); the user may also `accept` in a terminal. No accept/archive without explicit user approval.
 5. Serial execution: one `doing` item at a time per proposal
 
 ## Build
