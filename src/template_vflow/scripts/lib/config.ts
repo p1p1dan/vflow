@@ -27,7 +27,6 @@ export const ARCHIVE_DIR = join(PROPOSALS_DIR, 'archive');
 export const RUNTIME_DIR = join(ROOT, 'runtime');
 export const SESSIONS_DIR = join(RUNTIME_DIR, 'sessions');
 export const KNOWLEDGE_DIR = join(ROOT, 'knowledge');
-export const TEMPLATES_DIR = join(ROOT, 'templates', 'proposal');
 export const SPEC_DIR = join(ROOT, 'spec');
 export const CONFIG_PATH = join(ROOT, 'config.json');
 export const REPO_INDEX_PATH = join(ROOT, 'repo.json');

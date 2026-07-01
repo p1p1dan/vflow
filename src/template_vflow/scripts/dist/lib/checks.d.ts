@@ -1,24 +1,17 @@
-import type { Stage, Proposal, ExecutionArtifact, ItemStatus } from './schema.js';
-export type GateCheckFn = (dir: string, proposal: Proposal) => string[];
-export declare const STAGE_GATES: Partial<Record<Stage, GateCheckFn>>;
-export declare function canArchive(dir: string, proposal: Proposal): {
+import type { Pointer, StateFile, ItemStatus, Tier, Proposal } from './schema.js';
+export interface GateResult {
     ok: boolean;
     errors: string[];
-};
-export declare function canAdvance(dir: string, proposal: Proposal): {
-    ok: boolean;
-    errors: string[];
-};
-export declare function nextStage(current: Stage): Stage | null;
-export declare function prevStage(current: Stage): Stage | null;
+}
+export declare function nextPointer(current: Pointer): Pointer | null;
+export declare function checkLedgerCaughtUp(dir: string, state: StateFile): GateResult;
+export declare function checkGateBuild(scopeArg: string | undefined, specRefs: StateFile['spec_refs']): GateResult;
+export declare function checkGateDesignReconfirm(dir: string, tier: Tier): GateResult;
+export declare function checkArchiveReady(proposal: Proposal, state: StateFile | null): GateResult;
+export declare const VALID_ITEM_TRANSITIONS: Record<ItemStatus, ItemStatus[]>;
 export interface ItemTransitionResult {
     ok: boolean;
     error?: string;
 }
-export declare function canTransitionItem(exec: ExecutionArtifact, itemId: string, to: ItemStatus): ItemTransitionResult;
-export type BackTarget = 'execution' | 'design' | 'analysis';
-export declare function canBack(proposal: Proposal, to: BackTarget): {
-    ok: boolean;
-    error?: string;
-};
+export declare function canTransitionItem(state: StateFile, itemId: string, to: ItemStatus): ItemTransitionResult;
 //# sourceMappingURL=checks.d.ts.map

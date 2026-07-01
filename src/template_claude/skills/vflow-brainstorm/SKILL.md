@@ -11,7 +11,7 @@ Systematic requirements discovery before design. Reduces low-value questions, su
 
 - User's task description
 - Project codebase and (if present) `.vflow/config.json`
-- Output target: conversation conclusions, or a user-specified file. When an active vflow proposal exists, conclusions feed the proposal's analysis (problem / scope / constraints).
+- Output target: conversation conclusions, or a user-specified file. When an active vflow proposal exists, conclusions feed the `understand` node's scope statement.
 
 ## Steps
 
@@ -78,7 +78,7 @@ Produce the final requirement summary with all sections:
 - Q&A log (question + answer)
 - Requirement conclusions: goal, in-scope, out-of-scope, acceptance criteria
 
-Deliver it to the conversation (or the user-specified file). When an active vflow proposal exists, fold goal/scope/constraints into the proposal's analysis stage.
+Deliver it to the conversation (or the user-specified file). When an active vflow proposal exists, fold goal/scope/constraints into the proposal's `understand` node.
 
 Confirm with the user: "Requirements are captured. Proceeding to design."
 

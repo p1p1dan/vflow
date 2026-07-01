@@ -135,7 +135,7 @@ Maintain throughout the analysis. After each phase, output the tracker to the co
 If conversation drifts (user asks a tangent), after addressing it:
 > 📍 Returning to FP analysis: Phase N has M items remaining. Continuing.
 
-If the analysis must survive across sessions, ask the user for a file to persist the tracker and phase outputs (e.g. a scratch note), or — when an active vflow proposal exists — record the conclusions in the proposal's design decisions.
+If the analysis must survive across sessions, ask the user for a file to persist the tracker and phase outputs (e.g. a scratch note), or — when an active vflow proposal exists — record the conclusions as a `decide` node ledger.md entry.
 
 ## Depth Standards
 

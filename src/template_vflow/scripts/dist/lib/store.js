@@ -1,7 +1,7 @@
-// store.ts — All IO: proposal CRUD, artifacts, events, repo index, item helpers.
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, appendFileSync, readdirSync, } from 'node:fs';
+// store.ts — All IO: proposal CRUD, state.json CRUD, ledger.md read/parse, repo index, item helpers.
+import { existsSync, mkdirSync, writeFileSync, renameSync, readdirSync, } from 'node:fs';
 import { join } from 'node:path';
-import { PROPOSALS_DIR, REPO_INDEX_PATH, isoNow, todayCompact, readJson, } from './config.js';
+import { PROPOSALS_DIR, REPO_INDEX_PATH, isoNow, todayCompact, readJson, readText, } from './config.js';
 // --- ID generation ---
 export function nextProposalId() {
     const today = todayCompact();
@@ -36,8 +36,7 @@ export function findProposalDir(id) {
         return null;
     for (const name of readdirSync(PROPOSALS_DIR)) {
         if (name.startsWith(id)) {
-            const full = join(PROPOSALS_DIR, name);
-            return full;
+            return join(PROPOSALS_DIR, name);
         }
     }
     return null;
@@ -59,25 +58,58 @@ export function writeProposal(dir, proposal) {
     mkdirSync(dir, { recursive: true });
     atomicWrite(join(dir, 'proposal.json'), JSON.stringify(proposal, null, 2) + '\n');
 }
-export function readArtifact(dir, name) {
-    return readJson(join(dir, `${name}.json`));
+// --- State (T2/T3 only; every field participates in a gate, so this is the only
+// I/O surface — the CLI is the sole writer, never AI Write/Edit) ---
+export function readState(dir) {
+    return readJson(join(dir, 'state.json'));
 }
-export function writeArtifact(dir, name, data) {
+export function writeState(dir, state) {
     mkdirSync(dir, { recursive: true });
-    atomicWrite(join(dir, `${name}.json`), JSON.stringify(data, null, 2) + '\n');
+    atomicWrite(join(dir, 'state.json'), JSON.stringify(state, null, 2) + '\n');
 }
-// --- Events ---
-export function appendEvent(dir, event) {
+// --- Ledger (T2/T3 only; CLI only writes the initial header — every transition/
+// checkpoint entry after that is hand-written by the AI via Write/Edit) ---
+export function initLedger(dir, id, title) {
     mkdirSync(dir, { recursive: true });
-    const line = JSON.stringify(event) + '\n';
-    appendFileSync(join(dir, 'events.jsonl'), line, 'utf-8');
+    writeFileSync(join(dir, 'ledger.md'), `# Ledger: ${title} (${id})\n`, 'utf-8');
 }
-export function readEvents(dir) {
-    const path = join(dir, 'events.jsonl');
-    if (!existsSync(path))
-        return [];
-    const lines = readFileSync(path, 'utf-8').split('\n').filter(l => l.trim());
-    return lines.map(l => JSON.parse(l));
+export function readLedgerText(dir) {
+    return readText(join(dir, 'ledger.md'));
+}
+const TRANSITION_HEADING = /^## \[(.+?)\] (\S+) -> (\S+)$/;
+// Parses every "## [ts] from -> to" heading (transitions, including self-loops
+// like "decide -> decide") plus its "- Satisfied:" line. CHECKPOINT headings
+// don't match this shape and are ignored here.
+export function parseLedgerTransitions(dir) {
+    const lines = readLedgerText(dir).split('\n');
+    const entries = [];
+    for (let i = 0; i < lines.length; i++) {
+        const m = TRANSITION_HEADING.exec(lines[i].trim());
+        if (!m)
+            continue;
+        let satisfied = '';
+        for (let j = i + 1; j < lines.length && !lines[j].startsWith('## '); j++) {
+            const sm = /^- Satisfied:\s*(.*)$/.exec(lines[j].trim());
+            if (sm) {
+                satisfied = sm[1];
+                break;
+            }
+        }
+        entries.push({ ts: m[1], from: m[2], to: m[3], satisfied });
+    }
+    return entries;
+}
+export function lastLedgerTransition(dir) {
+    const entries = parseLedgerTransitions(dir);
+    return entries.length ? entries[entries.length - 1] : null;
+}
+export function lastDecideRelatedTransition(dir) {
+    const entries = parseLedgerTransitions(dir);
+    for (let i = entries.length - 1; i >= 0; i--) {
+        if (entries[i].from === 'decide' || entries[i].to === 'decide')
+            return entries[i];
+    }
+    return null;
 }
 // --- Repo Index ---
 export function readRepoIndex() {
@@ -102,52 +134,17 @@ export function removeFromIndex(id) {
     index.proposals = index.proposals.filter(e => e.id !== id);
     writeRepoIndex(index);
 }
-// --- Execution item helpers ---
-export function readExecution(dir) {
-    return readArtifact(dir, 'execution');
+// --- State item helpers (serial "one doing at a time" invariant; no DAG) ---
+export function activeItem(state) {
+    return state.items.find(i => i.status === 'doing') ?? null;
 }
-export function readyItems(exec) {
-    const doneIds = new Set(exec.items.filter(i => i.status === 'done').map(i => i.id));
-    return exec.items.filter(i => i.status === 'todo' && i.depends_on.every(dep => doneIds.has(dep)));
+export function findItem(state, itemId) {
+    return state.items.find(i => i.id === itemId) ?? null;
 }
-export function activeItem(exec) {
-    return exec.items.find(i => i.status === 'doing') ?? null;
-}
-export function findItem(exec, itemId) {
-    return exec.items.find(i => i.id === itemId) ?? null;
-}
-export function setItemStatus(exec, itemId, status) {
-    const item = exec.items.find(i => i.id === itemId);
+export function setItemStatus(state, itemId, status) {
+    const item = state.items.find(i => i.id === itemId);
     if (item)
         item.status = status;
     return item ?? null;
-}
-// --- DAG validation ---
-export function detectCycle(items) {
-    const ids = new Set(items.map(i => i.id));
-    const visited = new Set();
-    const stack = new Set();
-    function dfs(id) {
-        if (stack.has(id))
-            return true;
-        if (visited.has(id))
-            return false;
-        visited.add(id);
-        stack.add(id);
-        const item = items.find(i => i.id === id);
-        if (item) {
-            for (const dep of item.depends_on) {
-                if (ids.has(dep) && dfs(dep))
-                    return true;
-            }
-        }
-        stack.delete(id);
-        return false;
-    }
-    for (const id of ids) {
-        if (dfs(id))
-            return true;
-    }
-    return false;
 }
 //# sourceMappingURL=store.js.map

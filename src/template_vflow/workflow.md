@@ -1,17 +1,25 @@
-# vflow2 Workflow Definition
+# vflow3 Workflow Definition
 
-Pipeline: intake → analysis → design → plan → execution → verify → pending_acceptance → done → archived
+Pipeline: understand → decide → build → check → done (free backward jump to any node already in history)
 
 ## Tier Guide
 
 - **T0**: Pure Q&A — no proposal created
-- **T1**: Clear, local, low-risk change — fast path (single item execution)
-- **T2**: Standard feature/fix — full stage walk with execution loop
-- **T3**: Architecture/core/high-risk — T2 + mandatory design confirmation before execution
+- **T1**: Clear, local, low-risk change — 3-line inline plan, zero artifacts beyond a minimal proposal.json (no state.json/ledger.md, no gates)
+- **T2**: Standard feature/fix — full pointer graph (state.json + ledger.md), 2 hard gates apply
+- **T3**: Architecture/core/high-risk — T2 + mandatory design reconfirmation (Hard Gate 1a) before entering build
 
 ## Skip Detection
 
 If the user's request is clearly T0 (question, explanation, no code change), do NOT create a proposal. Answer directly.
+
+## 常驻规则 (always-on, every node)
+
+- **Uncertainty → ask, don't guess.** If a decision is genuinely the user's to make (spec definitions, system boundaries, tech-stack choices, acceptance criteria), present your analysis and trade-offs and wait for user direction rather than inferring.
+- **Stagnation warning.** `inject.js` tracks how many prompts the pointer has sat still. If you see a stagnation warning, either make real progress (a `move`, an `item` transition, a `checkpoint`) or surface the blocker to the user — don't let the warning repeat silently.
+- **PR granularity.** Each execution item must produce a diff the user can fully read and understand in one sitting. If an item would touch too many files or lines, split it into smaller items before starting.
+- **Rubber duck.** When completing each item, explain in plain terms what the code does, what problem it solves, and any trade-off made — aim for the level of a Slack message to a teammate.
+- **Ledger discipline.** Every `move` requires the AI to hand-write the matching transition entry into `ledger.md` (`## [ts] from -> to` + a `- Satisfied:` line) before the *next* move is allowed. The CLI never writes this text — only you do, via Write/Edit.
 
 ---
 
@@ -24,150 +32,98 @@ No active proposal. Evaluate the user's request:
 
 Command: `node .vflow/scripts/dist/proposal.js create <slug> --title "..." --type <bug|feature|refactor|reference_build> --tier <T1|T2|T3>`
 
-[workflow-state:intake]
+[workflow-state:understand]
 
-Proposal created. Record the user's original request clearly.
-
-**Required artifact:** analysis.json with `problem` and `scope` filled.
+Proposal created. Build a shared understanding of the problem before deciding anything.
 
 **Actions:**
-1. Understand what the user wants
-2. Use the Write tool to author `proposals/<id>/analysis.json` (problem, scope, constraints, investigation), copying the field shape from `.vflow/templates/proposal/analysis.json`. Artifacts are hand-written JSON — there is no scaffolding command.
-3. Advance when ready
+1. Restate the user's request in your own words; surface hidden assumptions.
+2. Investigate the relevant code/config so the problem is grounded in what actually exists, not guesswork.
+3. When you can state the problem and its scope in one paragraph, move forward.
 
-**Gate to analysis:** analysis.json must have non-empty `problem` and `scope`.
+Command: `node .vflow/scripts/dist/proposal.js move --to decide`
 
-Command: `node .vflow/scripts/dist/proposal.js advance`
+[workflow-state:decide]
 
-[workflow-state:analysis]
-
-Analysis complete. Now produce design decisions.
-
-**Required artifact:** design.json with at least 1 decision.
+Understanding is settled. Make the key design decisions.
 
 **Actions:**
-1. Identify key design decisions, alternatives, and tradeoffs
-2. Use the Write tool to author `proposals/<id>/design.json` (decisions array), copying the field shape from `.vflow/templates/proposal/design.json`.
-3. For T3: present the design decisions to the user; after they approve in-conversation, run `node .vflow/scripts/dist/proposal.js confirm-design --user-approved`.
+1. Identify the decision points, alternatives considered, and why you picked what you picked.
+2. **Decision ownership:** decisions involving spec definitions, system boundaries, or tech-stack choices are user-owned — present trade-offs and wait for user direction. AI-inferred decisions are only fine for implementation details within an already-approved design.
+3. Hand-write the decision into `ledger.md` under a `## [ts] understand -> decide` (first entry) or later `## [ts] decide -> decide` heading, with a `- Satisfied:` line summarizing the decision.
 
-**Decision ownership:** Decisions involving spec definitions, system boundaries, or tech-stack choices are **user-owned** — present your analysis and trade-offs, then wait for user direction before advancing. Record every key decision with its rationale in design.json so the choices are traceable. AI-inferred decisions are acceptable only for implementation details within an already-approved design.
+**T3 only — Hard Gate 1a:** before you're allowed to `move --to build`, the *last* decide-related ledger entry must be a self-loop `## [ts] decide -> decide` whose Satisfied line contains the literal marker `confirmed_by_user:true`. Get the user's explicit approval in conversation first, then write that entry yourself — there is no CLI command for it, it's a plain ledger.md edit.
 
-**Gate to design:** design.json must have ≥1 decision entry.
+**Before moving to build — Hard Gate 1 (all tiers):** declare your spec citations now:
+`node .vflow/scripts/dist/proposal.js spec-ref add --file <path> --reason "..."` (repeatable), or `spec-ref none --reason "..."` if nothing applies.
 
-Command: `node .vflow/scripts/dist/proposal.js advance`
+Command: `node .vflow/scripts/dist/proposal.js move --to build --scope "<one-line problem/scope statement>"`
 
-[workflow-state:design]
+[workflow-state:build]
 
-Design decisions recorded. Now build the execution plan.
-
-**Required artifact:** plan.json with `execution_outline` and `verify_plan.checks` (≥1 check).
-
-**Actions:**
-1. Break down implementation into execution items (ordered, with dependencies)
-2. Define verification checks (which are gating?)
-3. Use the Write tool to author `proposals/<id>/plan.json` (execution_outline + verify_plan.checks), copying the field shape from `.vflow/templates/proposal/plan.json`.
-
-**Gate to plan:** plan.json must have non-empty `execution_outline` and at least 1 verify check.
-
-Command: `node .vflow/scripts/dist/proposal.js advance`
-
-[workflow-state:plan]
-
-Plan ready. Populate execution items and start executing.
-
-**Required artifact:** execution.json with items (non-empty, DAG valid, ≥1 ready).
-
-**Actions:**
-1. Add execution items: `node .vflow/scripts/dist/proposal.js execution add-item --title "..." [--depends E-001,E-002]`
-2. Advance to execution stage
-
-**Gate to execution:** execution.json items non-empty, DAG has no cycle, ≥1 item is ready.
-
-Command: `node .vflow/scripts/dist/proposal.js advance`
-
-[workflow-state:execution]
-
-Executing. Work through items serially (one `doing` at a time).
+Design settled, gates cleared. Implement.
 
 **Loop:**
-1. Start next ready item: `node .vflow/scripts/dist/proposal.js execution start-item --item E-NNN`
-2. Implement the work described by that item
-3. Complete with evidence: `node .vflow/scripts/dist/proposal.js execution complete-item --item E-NNN --evidence "..."`
-4. Repeat until all items done/cancelled
+1. Add items as you identify them: `node .vflow/scripts/dist/proposal.js item add --title "..."`
+2. Work one at a time (serial): `item start --item E-NNN`
+3. Implement the item's slice of work.
+4. `item complete --item E-NNN --note "..."` (or `item block`/`item cancel` if it can't proceed)
+5. Repeat until the work is done.
 
 **Guardrails:**
-- If goal/scope/risk/approach changes significantly → stop, confirm with user
-- If major new problem discovered → `node .vflow/scripts/dist/proposal.js back --to design`
-- **PR granularity:** Each execution item must produce a diff the user can fully read and understand in one sitting. If an item would touch too many files or lines, split it into smaller items before starting.
-- **Rubber duck:** When completing each item, explain in plain terms what the code does, what problem it solves, and any trade-off made — aim for the level of a Slack message to a teammate.
+- If goal/scope/approach changes significantly → stop, confirm with the user before continuing.
+- If a major new problem is discovered → `move --to decide` to rework the design (any node in `history_stack` is reachable backward).
+- Long build sessions: periodically `checkpoint` to leave a recovery trail in ledger.md (已完成/未完成/关键文件/坑/下一步).
+- PR granularity and rubber duck rules apply to every item (see 常驻规则 above).
 
-**Gate to verify:** All items must be `done` or `cancelled`.
+Command: `node .vflow/scripts/dist/proposal.js move --to check`
 
-Command: `node .vflow/scripts/dist/proposal.js advance`
+[workflow-state:check]
 
-[workflow-state:verify]
+Implementation complete. Self-check before asking for acceptance — there is no machine-run verify command in v3; this is an AI judgment checklist.
 
-All execution items complete. Run verification checks.
+**Self-check (no fixed schema — use judgment):**
+1. **Completeness** — is everything promised in `decide` actually done?
+2. **Correctness** — does it meet the understood problem/scope; are edge cases handled?
+3. **Consistency** — does it violate any cited spec_ref? Cite file:line for anything questionable.
+4. If gaps are found → `move --to build` to reopen items, or `move --to decide` if the design itself needs rework.
 
-**Actions:**
-1. Execute each check from the verify plan
-2. Record results: `node .vflow/scripts/dist/proposal.js verify run`
-3. **Spec review (if `.vflow/spec/` exists):** perform a three-dimensional review of the files this proposal changed (`git diff` of the execution work) against the relevant spec conventions:
-   - **completeness** — are all planned changes and promised tests actually done?
-   - **correctness** — does it meet the analysis/acceptance criteria; are edge cases handled?
-   - **consistency** — does it violate any spec entry? Grade each finding CRITICAL / WARNING / SUGGESTION (cite file:line + spec entry).
-   Write the findings into `verify.json` under `spec_review` (`scope_files` + graded `findings`), then run `node .vflow/scripts/dist/proposal.js verify review`. An un-waived **CRITICAL** finding forces `all_gating_passed=false` (gating fail).
-4. If all gating checks pass (and no un-waived CRITICAL) → advance to pending_acceptance
-5. If gating checks fail → back to execution with items reopened
-
-**Gate to pending_acceptance:** verify.json `all_gating_passed` must be `true` and no un-waived CRITICAL spec-review finding.
-
-**On failure:** `node .vflow/scripts/dist/proposal.js back --to execution` (reopen failed items)
-
-Command: `node .vflow/scripts/dist/proposal.js advance`
-
-[workflow-state:pending_acceptance]
-
-Technical work and verification complete. PAUSE and hand off to the user — do not proceed silently.
+**Hard Gate 2 — explicit user acceptance:** once you're confident, PAUSE and hand off to the user — do not proceed silently.
 
 **Actions:**
-1. Report to the user: goal / current state / diff-from-goal / verification results / known risks.
+1. Report to the user: goal / current state / diff-from-goal / self-check results / known risks.
 2. Explicitly ask whether the result meets their requirements.
 3. ONLY after the user approves in this conversation, relay the acceptance:
    `node .vflow/scripts/dist/proposal.js accept --user-approved`
-   (the event is logged with `from=ai_relay` — auditable). Then proceed to archive.
+   (logged with `from=ai_relay` — auditable). The user may also accept themselves in a terminal: `accept` (interactive yes/no).
 
-**Guardrail:** Never run `accept --user-approved` without first reporting AND getting the user's explicit in-conversation approval. The user may also accept themselves in a terminal: `node .vflow/scripts/dist/proposal.js accept` (interactive yes/no).
+**Guardrail:** Never run `accept --user-approved` without first reporting AND getting the user's explicit in-conversation approval.
 
 [workflow-state:done]
 
 User accepted. Ready for archival.
 
 **Actions:**
-1. Archive the proposal (generates review.md from structured history)
-2. Extract knowledge candidates and write back to the spec library. Run `knowledge suggest` — it organizes candidates under the four categories. Classify each kept entry and pick a target spec file under `.vflow/spec/`:
-   - **Convention** — naming/format/structure agreement
-   - **Pattern** — verified implementation approach
-   - **Forbidden** — explicitly banned practice
-   - **Gotcha** — counter-intuitive trap
-   Target file: `common/` (language-agnostic principle) · `lang/<language>.md` (language-specific) · `modules/` (qt/embedded/...) · `domain/<topic>.md` (project domain knowledge). Persist each with `knowledge save`, or `knowledge skip` if nothing is worth keeping.
+1. Extract knowledge candidates before archiving. Run `knowledge suggest` — it prints the classification guide (Convention / Pattern / Forbidden / Gotcha) for you to apply by hand while reading back through `ledger.md`. Target file: `common/` (language-agnostic) · `lang/<language>.md` · `modules/` (qt/embedded/...) · `domain/<topic>.md`. Persist each with `knowledge save --content "..." --reason "..."`, or `knowledge skip` if nothing is worth keeping.
+2. Archive: `node .vflow/scripts/dist/proposal.js archive` (moves the proposal directory into `archive/<yyyy-mm>/`; requires `lifecycle_status=done`, pointer=done, and knowledge processed).
 
-Command: `node .vflow/scripts/dist/proposal.js archive [--html]`
-Knowledge: `node .vflow/scripts/dist/proposal.js knowledge suggest`
+Command: `node .vflow/scripts/dist/proposal.js knowledge suggest` then `archive`
 
 [workflow-state:overview]
 
-vflow2 drives every non-trivial code change through a proposal lifecycle. Read this map BEFORE acting — do not reverse-engineer the process mid-task.
+vflow3 drives every non-trivial code change through a 5-node proposal lifecycle. Read this map BEFORE acting — do not reverse-engineer the process mid-task.
 
-Pipeline: intake → analysis → design → plan → execution → verify → pending_acceptance → done → archived
+Pipeline: understand → decide → build → check → done. Backward jump to any node already in `history_stack` is always allowed via `move --to <node>`; forward movement must be to the strict next node.
 
-Tier: T0 = pure Q&A, NO proposal (answer directly). T1 = small local change, fast path. T2 = standard feature/fix. T3 = architecture/core/high-risk (design must be confirmed before plan).
+Tier: T0 = pure Q&A, NO proposal (answer directly). T1 = 3-line inline plan only, no state.json/ledger.md, no gates. T2 = full pointer graph. T3 = T2 + mandatory design reconfirmation (Hard Gate 1a) before build.
 
-BEFORE touching code: if the request is T1+, create the proposal FIRST, then analyze. Do NOT free-run analysis/edits without a proposal.
+BEFORE touching code: if the request is T1+, create the proposal FIRST, then understand.
   `node .vflow/scripts/dist/proposal.js create <slug> --title "..." --type <bug|feature|refactor|reference_build> --tier <T1|T2|T3>`
 
-Artifacts are hand-written JSON — there is NO scaffolding command. At each stage, use the Write tool to author `proposals/<id>/<name>.json` (analysis / design / plan / execution / verify), copying the field shape from `.vflow/templates/proposal/<name>.json`. Write the file, then `advance`.
+Two files only (T2/T3): `state.json` is machine-authoritative (pointer/history_stack/scope/items/spec_refs — CLI is the sole writer). `ledger.md` is the human-readable append-only record — the AI hand-writes every transition/checkpoint entry via Write/Edit; the CLI only writes the initial header.
 
-Acceptance (pending_acceptance): the AI PAUSES and reports goal / current state / diff-from-goal / verification results / risks, then asks the user. After the user approves in-conversation, the AI runs `accept --user-approved` (logged as ai_relay). The user may also accept themselves in a terminal. Same pattern for T3 `confirm-design --user-approved` and `verify waive --user-approved`.
+Exactly 2 hard gates: entering `build` requires scope + spec_refs (+ T3 design reconfirmation); entering `done` requires explicit user acceptance via `accept`. Everything else is an AI self-check, not a machine schema.
+
+Acceptance (`check` node): the AI PAUSES and reports goal / current state / diff-from-goal / self-check results / risks, then asks the user. After the user approves in-conversation, the AI runs `accept --user-approved` (logged as ai_relay). The user may also accept themselves in a terminal.
 
 Full step-by-step guide: the `/vflow-proposal` skill.

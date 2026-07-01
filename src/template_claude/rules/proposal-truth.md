@@ -1,8 +1,9 @@
 # Proposal Truth Source
 
-The proposal.json file is the authoritative source for proposal stage and lifecycle.
+state.json's `pointer` and `items[]` are authoritative for lifecycle/execution progress (T2/T3).
+proposal.json's `lifecycle_status` is authoritative for active/blocked/done/archived.
 Session runtime files (runtime/sessions/*.json) are hints only and must NEVER
-override or contradict proposal.json values.
+override or contradict state.json/proposal.json values.
 
-When injecting context, always read stage and item status from proposal.json and
-execution.json respectively — never from session runtime data.
+When injecting context, always read pointer and item status from state.json — never
+from session runtime data.

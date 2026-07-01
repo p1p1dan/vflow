@@ -6,7 +6,6 @@ export declare const ARCHIVE_DIR: string;
 export declare const RUNTIME_DIR: string;
 export declare const SESSIONS_DIR: string;
 export declare const KNOWLEDGE_DIR: string;
-export declare const TEMPLATES_DIR: string;
 export declare const SPEC_DIR: string;
 export declare const CONFIG_PATH: string;
 export declare const REPO_INDEX_PATH: string;

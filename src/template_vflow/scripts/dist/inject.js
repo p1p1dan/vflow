@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // inject.ts — Hook injection script for Claude Code session/prompt hooks.
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { WORKFLOW_PATH, SPEC_DIR, readText, } from './lib/config.js';
-import { readRepoIndex, readProposal, readExecution, readyItems, activeItem, findProposalDir, } from './lib/store.js';
-import { resolveActiveProposalId, resolveSessionKey, readSession, readLastActiveSession, } from './lib/session-runtime.js';
+import { join, isAbsolute } from 'node:path';
+import { PROJECT_ROOT, WORKFLOW_PATH, SPEC_DIR, readText, loadConfig, } from './lib/config.js';
+import { readRepoIndex, readProposal, readState, findProposalDir } from './lib/store.js';
+import { resolveActiveProposalId, resolveSessionKey, readLastActiveSession, readSession, writeSession, } from './lib/session-runtime.js';
+const STALL_WARN_THRESHOLD = 3;
 // --- Workflow state block extraction ---
-function extractWorkflowBlock(stage) {
+function extractWorkflowBlock(node) {
     const content = readText(WORKFLOW_PATH);
-    const marker = `[workflow-state:${stage}]`;
+    const marker = `[workflow-state:${node}]`;
     const idx = content.indexOf(marker);
     if (idx < 0)
         return '';
@@ -30,15 +31,15 @@ function injectSession() {
     else {
         lines.push(`Active proposals (${activeProposals.length}):`);
         for (const p of activeProposals) {
-            lines.push(`  ${p.id} [${p.stage}/${p.lifecycle_status}] ${p.title}`);
+            lines.push(`  ${p.id} [${p.lifecycle_status}] ${p.title}`);
         }
         if (activeProposals.length === 1) {
             lines.push(`\nCurrent: ${activeProposals[0].id} — ${activeProposals[0].title}`);
         }
     }
     // Workflow overview — hand the AI the full process map up-front so it doesn't
-    // reverse-engineer the lifecycle mid-task (root cause of the "边做边猜" problem).
-    // Single source: workflow.md [workflow-state:overview]. DRY.
+    // reverse-engineer the lifecycle mid-task. Single source: workflow.md
+    // [workflow-state:overview]. DRY.
     const overview = extractWorkflowBlock('overview');
     if (overview) {
         lines.push('');
@@ -60,21 +61,95 @@ function injectSession() {
     process.stdout.write(lines.join('\n') + '\n');
 }
 // --- Mode: prompt ---
+const T1_HINT = [
+    'T1 (inline plan tier): no state.json/ledger.md for this proposal.',
+    'Keep to the 3-line inline plan you stated at intake. No hard gates apply —',
+    'self-check your work, then run `accept` when done.',
+].join('\n');
+function injectSpecRefs(state, lines) {
+    const refs = state.spec_refs.filter(r => r.file !== 'none');
+    if (!refs.length)
+        return;
+    lines.push('');
+    lines.push('--- Spec References (declared before entering build) ---');
+    for (const ref of refs) {
+        const path = isAbsolute(ref.file) ? ref.file : join(PROJECT_ROOT, ref.file);
+        lines.push(`\n[${ref.file}] — ${ref.reason}`);
+        if (!existsSync(path)) {
+            lines.push(`(WARNING: file not found at ${path})`);
+            continue;
+        }
+        const content = readText(path).trim();
+        lines.push('```');
+        lines.push(content);
+        lines.push('```');
+    }
+}
+function injectItemQueue(state, lines) {
+    const doing = state.items.find(i => i.status === 'doing');
+    const todo = state.items.filter(i => i.status === 'todo');
+    const blocked = state.items.filter(i => i.status === 'blocked');
+    const done = state.items.filter(i => i.status === 'done').length;
+    lines.push('');
+    lines.push('--- Item Queue (serial: one doing at a time) ---');
+    if (doing)
+        lines.push(`ACTIVE: ${doing.id} — ${doing.title}`);
+    if (todo.length)
+        lines.push(`TODO: ${todo.map(i => `${i.id}(${i.title})`).join(', ')}`);
+    if (blocked.length)
+        lines.push(`BLOCKED: ${blocked.map(i => `${i.id}(${i.note ?? 'no reason'})`).join(', ')}`);
+    lines.push(`Progress: ${done}/${state.items.length} done`);
+}
+// Stagnation warning: if the pointer hasn't moved across consecutive prompts,
+// nudge the AI to either act or check in with the user instead of idling.
+function checkStagnation(sessionKey, pointer, lines) {
+    if (!sessionKey)
+        return;
+    const session = readSession(sessionKey);
+    if (!session)
+        return;
+    if (session.last_seen_pointer === pointer) {
+        session.pointer_stall_count = (session.pointer_stall_count ?? 0) + 1;
+    }
+    else {
+        session.pointer_stall_count = 0;
+        session.last_seen_pointer = pointer;
+    }
+    writeSession(session);
+    if (session.pointer_stall_count >= STALL_WARN_THRESHOLD) {
+        lines.push('');
+        lines.push(`WARNING: pointer has stayed at '${pointer}' for ${session.pointer_stall_count} prompts. ` +
+            'If work is genuinely stuck, use `move --to <node>` (or accept/checkpoint) to make progress, or surface the blocker to the user.');
+    }
+}
 function injectPrompt(payload) {
     const repoFallback = () => {
         const index = readRepoIndex();
         const active = index.proposals.filter(p => p.lifecycle_status === 'active');
         return active.length === 1 ? active[0].id : null;
     };
-    const { id: proposalId, source } = resolveActiveProposalId(payload, repoFallback);
+    const { id: proposalId } = resolveActiveProposalId(payload, repoFallback);
     const lines = [];
     lines.push('<vflow-prompt>');
     if (!proposalId) {
-        const block = extractWorkflowBlock('no_proposal');
-        if (block)
-            lines.push(block);
-        else
-            lines.push('No active proposal. Create one with: node .vflow/scripts/dist/proposal.js create <slug> --title "..." --type feature --tier T2');
+        const config = loadConfig();
+        const gateEnabled = config.features?.gate ?? true; // Default: enabled
+        if (gateEnabled) {
+            lines.push('MANDATORY: No active proposal exists. Before any code change, you MUST:');
+            lines.push('');
+            lines.push('1. Invoke the intake skill: Skill("vflow-go")');
+            lines.push('2. The skill will classify tier (T0-T3) and create a proposal for T1+');
+            lines.push('3. T0 tasks (pure questions) are answered directly without a proposal');
+            lines.push('');
+            lines.push('DO NOT attempt Write/Edit/NotebookEdit without a proposal — the PreToolUse hook will block you.');
+        }
+        else {
+            const block = extractWorkflowBlock('no_proposal');
+            if (block)
+                lines.push(block);
+            else
+                lines.push('No active proposal. Create one with: node .vflow/scripts/dist/proposal.js create <slug> --title "..." --type feature --tier T2');
+        }
         lines.push('</vflow-prompt>');
         process.stdout.write(lines.join('\n') + '\n');
         return;
@@ -94,63 +169,53 @@ function injectPrompt(payload) {
         return;
     }
     lines.push(`Proposal: ${proposal.id} — ${proposal.title}`);
-    lines.push(`Stage: ${proposal.stage} | Lifecycle: ${proposal.lifecycle_status} | Tier: ${proposal.tier} | Type: ${proposal.type}`);
+    lines.push(`Lifecycle: ${proposal.lifecycle_status} | Tier: ${proposal.tier} | Type: ${proposal.type}`);
     if (proposal.blocking.status === 'blocked') {
         lines.push(`BLOCKED: ${proposal.blocking.reason ?? proposal.blocking.type ?? 'unknown'}`);
     }
-    // Stage-specific workflow block
-    const block = extractWorkflowBlock(proposal.stage);
+    if (proposal.tier === 'T1') {
+        lines.push('');
+        lines.push(T1_HINT);
+        lines.push('');
+        lines.push('CLI: node .vflow/scripts/dist/proposal.js <command>');
+        lines.push('</vflow-prompt>');
+        process.stdout.write(lines.join('\n') + '\n');
+        return;
+    }
+    const state = readState(dir);
+    if (!state) {
+        lines.push(`WARNING: state.json not found for ${proposal.id} (tier ${proposal.tier}).`);
+        lines.push('</vflow-prompt>');
+        process.stdout.write(lines.join('\n') + '\n');
+        return;
+    }
+    lines.push(`Pointer: ${state.pointer} | History: ${state.history_stack.join(' -> ')}`);
+    // Node-specific workflow block
+    const block = extractWorkflowBlock(state.pointer);
     if (block) {
         lines.push('');
         lines.push(block);
     }
-    // Execution stage: inject item work queue + session runtime hints
-    if (proposal.stage === 'execution') {
-        const exec = readExecution(dir);
-        if (exec) {
-            const doing = activeItem(exec);
-            const ready = readyItems(exec);
-            const blocked = exec.items.filter(i => i.status === 'blocked');
-            lines.push('');
-            lines.push('--- Execution Work Queue ---');
-            if (doing) {
-                lines.push(`ACTIVE: ${doing.id} — ${doing.title}`);
-            }
-            if (ready.length) {
-                lines.push(`READY: ${ready.map(i => `${i.id}(${i.title})`).join(', ')}`);
-            }
-            if (blocked.length) {
-                lines.push(`BLOCKED: ${blocked.map(i => `${i.id}(${i.note ?? 'no reason'})`).join(', ')}`);
-            }
-            const done = exec.items.filter(i => i.status === 'done').length;
-            const total = exec.items.length;
-            lines.push(`Progress: ${done}/${total} done`);
-            // Session runtime hints (read-only, truth source is execution.json)
-            const sessionKey = resolveSessionKey(payload) ?? readLastActiveSession();
-            if (sessionKey) {
-                const session = readSession(sessionKey);
-                if (session) {
-                    if (session.active_execution_item_id) {
-                        const execDoing = doing?.id ?? null;
-                        if (session.active_execution_item_id !== execDoing) {
-                            lines.push(`WARNING: session hints active item '${session.active_execution_item_id}' but execution.json shows '${execDoing ?? 'none'}'. Trust execution.json.`);
-                        }
-                    }
-                }
-            }
-        }
+    // build: inject declared spec_refs' full content every turn (fixes the v2 bug
+    // where spec_refs were only ever injected once, at session start).
+    if (state.pointer === 'build') {
+        injectSpecRefs(state, lines);
+        injectItemQueue(state, lines);
     }
-    // pending_acceptance stage: surface confirmation hint
-    if (proposal.stage === 'pending_acceptance') {
+    // check: merges the old pending_acceptance hint — surface that the user still
+    // needs to run `accept` to finish.
+    if (state.pointer === 'check') {
         const sessionKey = resolveSessionKey(payload) ?? readLastActiveSession();
         if (sessionKey) {
             const session = readSession(sessionKey);
             if (session?.pending_user_confirmation) {
                 lines.push('');
-                lines.push('Session hint: pending_user_confirmation=true. User must run `accept` to proceed.');
+                lines.push('Session hint: pending_user_confirmation=true. Pause, report goal/state/diff/verification/risks, and ask the user. Only after explicit approval run `accept --user-approved`.');
             }
         }
     }
+    const sessionKey = resolveSessionKey(payload) ?? readLastActiveSession();
+    checkStagnation(sessionKey, state.pointer, lines);
     lines.push('');
     lines.push('CLI: node .vflow/scripts/dist/proposal.js <command>');
     lines.push('</vflow-prompt>');

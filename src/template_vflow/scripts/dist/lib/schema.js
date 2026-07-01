@@ -1,8 +1,5 @@
-// schema.ts — Pure types and enums for the vflow2 proposal system.
-export const STAGES = [
-    'intake', 'analysis', 'design', 'plan', 'execution',
-    'verify', 'pending_acceptance', 'done', 'archived',
-];
+// schema.ts — Pure types and enums for the vflow v3 proposal system.
+export const POINTERS = ['understand', 'decide', 'build', 'check', 'done'];
 export const LIFECYCLE = [
     'active', 'blocked', 'on_hold', 'done', 'archived', 'cancelled',
 ];

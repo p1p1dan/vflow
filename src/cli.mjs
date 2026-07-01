@@ -57,7 +57,7 @@ const COPY_IF_ABSENT = ['config.json'];
 // install then immediately delete them. A test pins MANAGED ∩ OLD = ∅.
 const MANAGED_CLAUDE_SKILLS = [
   'vflow-think', 'vflow-brainstorm', 'vflow-debug', 'vflow-commit',
-  'vflow-proposal',
+  'vflow-proposal', 'vflow-go',
 ];
 
 const GITIGNORE_LINES = [
@@ -82,12 +82,16 @@ const PROJECT_HOOKS = {
   UserPromptSubmit: projectHookCmd('prompt'),
 };
 
+// PreToolUse hook requires a matcher — handled separately from PROJECT_HOOKS
+const PRE_TOOL_GATE_CMD = 'node .vflow/scripts/dist/pre-tool-gate.js';
+const PRE_TOOL_GATE_MATCHER = 'Write|Edit|NotebookEdit';
+
 // v0.x skills to clean from .claude/skills/.
 // NOTE: vflow-think/brainstorm/debug/commit are intentionally absent — they are
 // now MANAGED_CLAUDE_SKILLS (kept, reinstalled every init/update). Do not add
 // them back here or cleanup will delete freshly-installed skills.
 const OLD_CLAUDE_SKILLS = [
-  'vflow-go', 'vflow-continue', 'vflow-context',
+  'vflow-continue', 'vflow-context',
   'vflow-code', 'vflow-test', 'vflow-review',
   'vflow-spec', 'vflow-docs', 'vflow-meta',
   'vflow-execute', 'codex-review', 'context-resume', 'context-save',
@@ -446,6 +450,34 @@ function installProjectHooks(dstRoot) {
   console.log(`  [${changed ? '合并' : '保持'}] .claude/settings.json（项目 hooks）`);
 }
 
+function installPreToolGateHook(dstRoot) {
+  const sp = path.join(dstRoot, '.claude', 'settings.json');
+  const settings = readProjectSettingsOrRebuild(sp);
+  if (!settings.hooks) settings.hooks = {};
+  if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
+
+  const entries = settings.hooks.PreToolUse;
+  // Clean up any stale pre-tool-gate entries
+  for (const e of entries) {
+    e.hooks = (e.hooks || []).filter(h => !String(h.command || '').includes('pre-tool-gate'));
+  }
+  settings.hooks.PreToolUse = entries.filter(e => (e.hooks || []).length > 0);
+
+  // Check if already registered
+  const exists = settings.hooks.PreToolUse.some(e =>
+    e.matcher === PRE_TOOL_GATE_MATCHER &&
+    (e.hooks || []).some(h => h.command === PRE_TOOL_GATE_CMD)
+  );
+  if (!exists) {
+    settings.hooks.PreToolUse.push({
+      matcher: PRE_TOOL_GATE_MATCHER,
+      hooks: [{ type: 'command', command: PRE_TOOL_GATE_CMD }],
+    });
+    writeJson(sp, settings);
+    console.log('  [合并] .claude/settings.json（PreToolUse gate hook）');
+  }
+}
+
 function appendGitignore(dstRoot) {
   const p = path.join(dstRoot, '.gitignore');
   let existing = '';
@@ -596,6 +628,7 @@ async function doInstall(dst, { update = false, spec = false, yes = false, recon
   }
   installClaudeSkills(dst);
   installProjectHooks(dst);
+  installPreToolGateHook(dst);
 
   appendGitignore(dst);
 

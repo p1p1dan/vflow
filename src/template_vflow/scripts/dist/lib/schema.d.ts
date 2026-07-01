@@ -1,5 +1,5 @@
-export declare const STAGES: readonly ["intake", "analysis", "design", "plan", "execution", "verify", "pending_acceptance", "done", "archived"];
-export type Stage = typeof STAGES[number];
+export declare const POINTERS: readonly ["understand", "decide", "build", "check", "done"];
+export type Pointer = typeof POINTERS[number];
 export declare const LIFECYCLE: readonly ["active", "blocked", "on_hold", "done", "archived", "cancelled"];
 export type LifecycleStatus = typeof LIFECYCLE[number];
 export declare const PROPOSAL_TYPES: readonly ["bug", "feature", "refactor", "reference_build"];
@@ -22,7 +22,6 @@ export interface Proposal {
     id: string;
     title: string;
     slug: string;
-    stage: Stage;
     lifecycle_status: LifecycleStatus;
     blocking: Blocking;
     tier: Tier;
@@ -32,90 +31,33 @@ export interface Proposal {
     updated_at: string;
     summary?: string;
     knowledge_processed?: boolean;
-    schema_version: 1;
+    schema_version: 2;
 }
-export interface ExecutionItem {
+export interface StateItem {
     id: string;
     title: string;
     status: ItemStatus;
-    depends_on: string[];
-    evidence: string[];
     note?: string;
 }
-export interface ExecutionArtifact {
-    items: ExecutionItem[];
-}
-export interface VerifyCheck {
-    id: string;
-    description: string;
-    gating: boolean;
-}
-export interface VerifyPlan {
-    checks: VerifyCheck[];
-    evidence_required: string[];
-}
-export interface VerifyResult {
-    id: string;
-    passed: boolean;
-    evidence: string;
-    waiver?: string;
-}
-export type SpecReviewLevel = 'CRITICAL' | 'WARNING' | 'SUGGESTION';
-export type SpecReviewDimension = 'completeness' | 'correctness' | 'consistency';
-export interface SpecReviewFinding {
-    level: SpecReviewLevel;
-    dimension: SpecReviewDimension;
+export interface SpecRef {
     file: string;
-    line?: number;
-    issue: string;
-    spec_ref?: string;
-    waived?: boolean;
+    reason: string;
 }
-export interface SpecReview {
-    reviewed: boolean;
-    scope_files: string[];
-    findings: SpecReviewFinding[];
-}
-export interface VerifyArtifact {
-    results: VerifyResult[];
-    all_gating_passed: boolean;
-    verify_round?: number;
-    spec_review?: SpecReview;
-}
-export interface AnalysisArtifact {
-    problem: string;
+export interface StateFile {
+    schema_version: 2;
+    pointer: Pointer;
+    history_stack: Pointer[];
     scope: string;
-    constraints: string[];
-    investigation: string;
-}
-export interface DesignDecision {
-    id: string;
-    decision: string;
-    rationale: string;
-    tradeoffs: string;
-}
-export interface DesignArtifact {
-    decisions: DesignDecision[];
-}
-export interface PlanArtifact {
-    execution_outline: string;
-    verify_plan: VerifyPlan;
-}
-export type EventType = 'proposal_created' | 'stage_changed' | 'lifecycle_changed' | 'blocking_changed' | 'tier_changed' | 'type_changed' | 'item_added' | 'item_status_changed' | 'item_cancelled' | 'plan_adjusted' | 'user_confirmation' | 'waiver_granted' | 'verify_completed' | 'acceptance' | 'archived' | 'knowledge_saved' | 'verify_result_recorded' | 'spec_review_recorded' | 'gate_bypassed' | 'design_confirmed';
-export interface VflowEvent {
-    ts: string;
-    type: EventType;
-    from?: string;
-    to?: string;
-    item_id?: string;
-    detail?: string;
-    verify_round?: number;
+    items: StateItem[];
+    spec_refs: SpecRef[];
 }
 export interface SessionRuntime {
     session_id: string;
     active_proposal_id: string | null;
     active_execution_item_id: string | null;
     pending_user_confirmation: boolean;
+    pointer_stall_count?: number;
+    last_seen_pointer?: string;
     last_seen_at: string;
 }
 export interface RepoIndexEntry {
@@ -123,7 +65,6 @@ export interface RepoIndexEntry {
     slug: string;
     dir: string;
     title: string;
-    stage: Stage;
     lifecycle_status: LifecycleStatus;
     type: ProposalType;
     updated_at: string;

@@ -1,17 +1,14 @@
 {
   "schema_version": 1,
-  "project": "<project-name>",
-  "language": "",
+  "project": "vflow",
+  "language": "zh-CN",
   "enabled": true,
-  "initialized": false,
-  "test_required": true,
+  "test_required": false,
   "build": {
-    "command": "",
-    "test_command": ""
+    "command": "cd .vflow/scripts && npm run build",
+    "test_command": "cd .vflow/scripts && node --test ../tests/proposal-lifecycle.test.mjs"
   },
   "features": {
-    "proposals": true,
-    "knowledge": true,
-    "sessions": true
+    "gate": true
   }
 }

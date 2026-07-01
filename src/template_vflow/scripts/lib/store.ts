@@ -1,17 +1,14 @@
-// store.ts — All IO: proposal CRUD, artifacts, events, repo index, item helpers.
+// store.ts — All IO: proposal CRUD, state.json CRUD, ledger.md read/parse, repo index, item helpers.
 
 import {
-  existsSync, mkdirSync, readFileSync, writeFileSync,
-  renameSync, appendFileSync, readdirSync,
+  existsSync, mkdirSync, writeFileSync, renameSync, readdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import {
-  PROPOSALS_DIR, REPO_INDEX_PATH, isoNow, todayCompact, readJson,
+  PROPOSALS_DIR, REPO_INDEX_PATH, isoNow, todayCompact, readJson, readText,
 } from './config.js';
 import type {
-  Proposal, RepoIndex, RepoIndexEntry, VflowEvent,
-  ExecutionArtifact, ExecutionItem, ItemStatus,
-  AnalysisArtifact, DesignArtifact, PlanArtifact, VerifyArtifact,
+  Proposal, RepoIndex, RepoIndexEntry, StateFile, StateItem, ItemStatus,
 } from './schema.js';
 
 // --- ID generation ---
@@ -48,8 +45,7 @@ export function findProposalDir(id: string): string | null {
   if (!existsSync(PROPOSALS_DIR)) return null;
   for (const name of readdirSync(PROPOSALS_DIR)) {
     if (name.startsWith(id)) {
-      const full = join(PROPOSALS_DIR, name);
-      return full;
+      return join(PROPOSALS_DIR, name);
     }
   }
   return null;
@@ -77,32 +73,69 @@ export function writeProposal(dir: string, proposal: Proposal): void {
   atomicWrite(join(dir, 'proposal.json'), JSON.stringify(proposal, null, 2) + '\n');
 }
 
-// --- Artifacts ---
+// --- State (T2/T3 only; every field participates in a gate, so this is the only
+// I/O surface — the CLI is the sole writer, never AI Write/Edit) ---
 
-export type ArtifactName = 'analysis' | 'design' | 'plan' | 'execution' | 'verify';
-
-export function readArtifact<T>(dir: string, name: ArtifactName): T | null {
-  return readJson<T>(join(dir, `${name}.json`));
+export function readState(dir: string): StateFile | null {
+  return readJson<StateFile>(join(dir, 'state.json'));
 }
 
-export function writeArtifact<T>(dir: string, name: ArtifactName, data: T): void {
+export function writeState(dir: string, state: StateFile): void {
   mkdirSync(dir, { recursive: true });
-  atomicWrite(join(dir, `${name}.json`), JSON.stringify(data, null, 2) + '\n');
+  atomicWrite(join(dir, 'state.json'), JSON.stringify(state, null, 2) + '\n');
 }
 
-// --- Events ---
+// --- Ledger (T2/T3 only; CLI only writes the initial header — every transition/
+// checkpoint entry after that is hand-written by the AI via Write/Edit) ---
 
-export function appendEvent(dir: string, event: VflowEvent): void {
+export function initLedger(dir: string, id: string, title: string): void {
   mkdirSync(dir, { recursive: true });
-  const line = JSON.stringify(event) + '\n';
-  appendFileSync(join(dir, 'events.jsonl'), line, 'utf-8');
+  writeFileSync(join(dir, 'ledger.md'), `# Ledger: ${title} (${id})\n`, 'utf-8');
 }
 
-export function readEvents(dir: string): VflowEvent[] {
-  const path = join(dir, 'events.jsonl');
-  if (!existsSync(path)) return [];
-  const lines = readFileSync(path, 'utf-8').split('\n').filter(l => l.trim());
-  return lines.map(l => JSON.parse(l) as VflowEvent);
+export function readLedgerText(dir: string): string {
+  return readText(join(dir, 'ledger.md'));
+}
+
+export interface LedgerTransitionEntry {
+  ts: string;
+  from: string;
+  to: string;
+  satisfied: string;
+}
+
+const TRANSITION_HEADING = /^## \[(.+?)\] (\S+) -> (\S+)$/;
+
+// Parses every "## [ts] from -> to" heading (transitions, including self-loops
+// like "decide -> decide") plus its "- Satisfied:" line. CHECKPOINT headings
+// don't match this shape and are ignored here.
+export function parseLedgerTransitions(dir: string): LedgerTransitionEntry[] {
+  const lines = readLedgerText(dir).split('\n');
+  const entries: LedgerTransitionEntry[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = TRANSITION_HEADING.exec(lines[i].trim());
+    if (!m) continue;
+    let satisfied = '';
+    for (let j = i + 1; j < lines.length && !lines[j].startsWith('## '); j++) {
+      const sm = /^- Satisfied:\s*(.*)$/.exec(lines[j].trim());
+      if (sm) { satisfied = sm[1]; break; }
+    }
+    entries.push({ ts: m[1], from: m[2], to: m[3], satisfied });
+  }
+  return entries;
+}
+
+export function lastLedgerTransition(dir: string): LedgerTransitionEntry | null {
+  const entries = parseLedgerTransitions(dir);
+  return entries.length ? entries[entries.length - 1] : null;
+}
+
+export function lastDecideRelatedTransition(dir: string): LedgerTransitionEntry | null {
+  const entries = parseLedgerTransitions(dir);
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (entries[i].from === 'decide' || entries[i].to === 'decide') return entries[i];
+  }
+  return null;
 }
 
 // --- Repo Index ---
@@ -132,59 +165,18 @@ export function removeFromIndex(id: string): void {
   writeRepoIndex(index);
 }
 
-// --- Execution item helpers ---
+// --- State item helpers (serial "one doing at a time" invariant; no DAG) ---
 
-export function readExecution(dir: string): ExecutionArtifact | null {
-  return readArtifact<ExecutionArtifact>(dir, 'execution');
+export function activeItem(state: StateFile): StateItem | null {
+  return state.items.find(i => i.status === 'doing') ?? null;
 }
 
-export function readyItems(exec: ExecutionArtifact): ExecutionItem[] {
-  const doneIds = new Set(exec.items.filter(i => i.status === 'done').map(i => i.id));
-  return exec.items.filter(i =>
-    i.status === 'todo' && i.depends_on.every(dep => doneIds.has(dep))
-  );
+export function findItem(state: StateFile, itemId: string): StateItem | null {
+  return state.items.find(i => i.id === itemId) ?? null;
 }
 
-export function activeItem(exec: ExecutionArtifact): ExecutionItem | null {
-  return exec.items.find(i => i.status === 'doing') ?? null;
-}
-
-export function findItem(exec: ExecutionArtifact, itemId: string): ExecutionItem | null {
-  return exec.items.find(i => i.id === itemId) ?? null;
-}
-
-export function setItemStatus(
-  exec: ExecutionArtifact, itemId: string, status: ItemStatus,
-): ExecutionItem | null {
-  const item = exec.items.find(i => i.id === itemId);
+export function setItemStatus(state: StateFile, itemId: string, status: ItemStatus): StateItem | null {
+  const item = state.items.find(i => i.id === itemId);
   if (item) item.status = status;
   return item ?? null;
-}
-
-// --- DAG validation ---
-
-export function detectCycle(items: ExecutionItem[]): boolean {
-  const ids = new Set(items.map(i => i.id));
-  const visited = new Set<string>();
-  const stack = new Set<string>();
-
-  function dfs(id: string): boolean {
-    if (stack.has(id)) return true;
-    if (visited.has(id)) return false;
-    visited.add(id);
-    stack.add(id);
-    const item = items.find(i => i.id === id);
-    if (item) {
-      for (const dep of item.depends_on) {
-        if (ids.has(dep) && dfs(dep)) return true;
-      }
-    }
-    stack.delete(id);
-    return false;
-  }
-
-  for (const id of ids) {
-    if (dfs(id)) return true;
-  }
-  return false;
 }

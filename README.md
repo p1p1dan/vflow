@@ -119,6 +119,74 @@ node .vflow/scripts/dist/proposal.js <create|continue|status|list|advance|back|s
 
 ---
 
+## 提案强制门卫（vflow-go + PreToolUse gate）
+
+vflow 2.1.0+ 引入了三层强制机制，确保 AI 在无 active proposal 时无法自由修改代码：
+
+### 工作原理
+
+1. **SessionStart hook**：会话开始时注入当前提案状态
+2. **UserPromptSubmit hook**：用户提交 prompt 时，若无 active proposal 且 gate 开启，注入 MANDATORY 指令强制 AI 调用 `vflow-go` skill
+3. **PreToolUse hook**：Write/Edit/NotebookEdit 被调用时检查 active proposal，无则 exit 2 硬阻断（bypass-proof）
+
+### vflow-go skill
+
+新的 intake 入口 skill，负责：
+- 分类 tier（T0/T1/T2/T3）
+- T0 直接回答，T1+ 自动创建 proposal
+- 调用 `vflow-proposal` skill 进入完整生命周期
+
+**手动调用**：
+```
+Skill("vflow-go")
+```
+
+或在 Claude Code 输入框：
+```
+/vflow-go
+```
+
+### 开关配置
+
+编辑 `.vflow/scripts/config.json`：
+
+```json
+{
+  "features": {
+    "gate": true
+  }
+}
+```
+
+- `"gate": true`（默认）：UserPromptSubmit 注入强制指令 + PreToolUse 硬阻断
+- `"gate": false`：UserPromptSubmit 仅注入提示信息，PreToolUse 仍然阻断（兜底）
+
+**推荐**：开发 vflow 本身时设为 `false`，日常使用设为 `true`。
+
+### 故障排查
+
+**问题：AI 被 PreToolUse 阻断，提示"No active proposal"**
+
+原因：你提交了代码改动需求，但未建 proposal。
+
+解决：
+1. 调用 `Skill("vflow-go")` 让 AI 自动分类并建 proposal
+2. 或手动创建：`node .vflow/scripts/dist/proposal.js create <slug> --title "..." --type feature --tier T2`
+
+**问题：想纯问问题，AI 却被强制建 proposal**
+
+原因：gate 开启时，AI 会优先尝试建 proposal。
+
+解决：明确表述成 T0 问题（"解释一下…"、"这块逻辑是…"），AI 会判定为 T0 直接回答。
+
+**问题：gate 关闭后，AI 仍无法 Write/Edit**
+
+原因：PreToolUse 硬阻断始终生效，不受 `features.gate` 开关控制。
+
+解决：这是兜底机制的预期行为——即使开关关闭，AI 仍需通过 `vflow-go` 或手动建 proposal 来解除阻断。
+
+---
+
 ## 使用技巧
 
 - **让 AI 推进流程，你只在关键节点把关。** 日常提需求即可；AI 会自动建提案、写 analysis/design/plan、跑 execution。你的主要职责是在 `pending_acceptance` 阶段做验收——这一步只有你能做。
