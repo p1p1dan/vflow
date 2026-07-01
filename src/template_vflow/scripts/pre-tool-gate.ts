@@ -8,7 +8,7 @@
 // Blocking reason must be written to stderr (not stdout).
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readRepoIndex } from './lib/store.js';
 
 // Read hook payload from stdin (Claude Code passes tool call metadata as JSON)
 let payload: { tool_name?: string } = {};
@@ -28,20 +28,15 @@ if (!toolName || !blockedTools.includes(toolName)) {
   process.exit(0);
 }
 
-// Check for active proposal
-const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-const repoIndexPath = join(cwd, '.vflow', 'scripts', 'repo.json');
-
-let hasActiveProposal = false;
-try {
-  const repoIndex = JSON.parse(readFileSync(repoIndexPath, 'utf-8'));
-  hasActiveProposal = repoIndex.proposals?.some(
-    (p: any) => p.lifecycle_status === 'active' || p.lifecycle_status === 'blocked'
-  ) ?? false;
-} catch {
-  // Fail-safe: if repo.json is missing or corrupt, allow (do not block)
-  process.exit(0);
-}
+// readRepoIndex() shares the same ROOT resolution as every other CLI command
+// (lib/config.ts resolveRoot()), so this can never drift from where store.ts
+// actually writes repo.json. A missing/corrupt index yields {proposals: []}
+// (readJson logs+swallows), which correctly falls through to the block below —
+// no active proposal is exactly the state this gate exists to catch.
+const repoIndex = readRepoIndex();
+const hasActiveProposal = repoIndex.proposals?.some(
+  (p) => p.lifecycle_status === 'active' || p.lifecycle_status === 'blocked'
+) ?? false;
 
 if (hasActiveProposal) {
   // Active proposal exists — allow the tool call

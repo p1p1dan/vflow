@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
-  "project": "vflow",
-  "language": "zh-CN",
+  "project": "<project-name>",
+  "language": "",
   "enabled": true,
-  "test_required": false,
+  "initialized": false,
+  "test_required": true,
   "build": {
-    "command": "cd .vflow/scripts && npm run build",
-    "test_command": "cd .vflow/scripts && node --test ../tests/proposal-lifecycle.test.mjs"
+    "command": "",
+    "test_command": ""
   },
   "features": {
     "gate": true
