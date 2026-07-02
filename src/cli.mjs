@@ -8,7 +8,10 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 
-const __filename = fileURLToPath(import.meta.url);
+// realpathSync resolves symlinks + normalizes Windows drive-case/8.3 names, so
+// PKG (and thus VERSION / template paths) stays correct even when vflow is
+// launched through a symlinked global bin (nvm/volta/fnm) or an npm shim.
+const __filename = fs.realpathSync(fileURLToPath(import.meta.url));
 const PKG = path.dirname(__filename);
 const VERSION = JSON.parse(
   fs.readFileSync(path.join(PKG, '..', 'package.json'), 'utf8')
@@ -785,9 +788,20 @@ async function main() {
 }
 
 // Run as CLI only when invoked directly (not when imported by tests).
-const invokedDirectly = process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
-if (invokedDirectly) {
+// Compare realpaths, not raw URL strings: npm shims, symlinked global bins
+// (nvm/volta/fnm), and Windows drive-case differences make import.meta.url and
+// argv[1] diverge textually even when they point at the same file — the old
+// string equality then silently skipped main(), so every command printed nothing.
+function isInvokedDirectly() {
+  const argv1 = process.argv[1];
+  if (!argv1) return false;
+  try {
+    return __filename === fs.realpathSync(argv1);
+  } catch {
+    return import.meta.url === pathToFileURL(argv1).href;
+  }
+}
+if (isInvokedDirectly()) {
   main().then((code) => process.exit(code || 0)).catch((err) => {
     console.error(err?.message || err);
     process.exit(1);

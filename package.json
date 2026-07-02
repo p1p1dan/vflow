@@ -1,6 +1,6 @@
 {
   "name": "@p1lab/vflow",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "提案驱动 AI 研发工作流引擎",
   "type": "module",
   "bin": {
