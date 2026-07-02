@@ -1,6 +1,6 @@
 {
   "name": "@p1lab/vflow",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "提案驱动 AI 研发工作流引擎",
   "type": "module",
   "bin": {
@@ -15,7 +15,6 @@
     "src/template_vflow/scripts/**/*",
     "src/template_vflow/skills/**/*",
     "src/template_vflow/spec/**/*",
-    "src/template_vflow/templates/**/*",
     "src/template_vflow/tests/**/*",
     "src/template_claude/**/*"
   ],

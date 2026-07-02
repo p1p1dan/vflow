@@ -441,10 +441,19 @@ function cmdSet(sub, flags) {
                 console.log('Usage: set tier --value T1');
                 return;
             }
+            const isRecovery = flags['recovery'] === 'true';
             const prev = proposal.tier;
-            proposal.tier = value;
+            const next = value;
+            // Prevent cross-tier changes without explicit recovery flag
+            if (!isRecovery && prev !== next && (prev === 'T3' || next === 'T3')) {
+                console.log(`ERROR: Cannot change tier from ${prev} to ${next} without --recovery flag.`);
+                console.log('Tier changes involving T3 require explicit recovery mode to prevent accidental downgrades.');
+                console.log('If you are recovering from a misclassification, rerun: set tier --value ${next} --recovery true');
+                return;
+            }
+            proposal.tier = next;
             writeProposal(dir, proposal);
-            console.log(`Tier: ${prev} -> ${value}`);
+            console.log(`Tier: ${prev} -> ${next}${isRecovery ? ' (recovery mode)' : ''}`);
             break;
         }
         case 'type': {
@@ -463,11 +472,27 @@ function cmdSet(sub, flags) {
                 console.log('Usage: set lifecycle --value on_hold');
                 return;
             }
+            const isRecovery = flags['recovery'] === 'true';
             const prev = proposal.lifecycle_status;
-            proposal.lifecycle_status = value;
+            const next = value;
+            // Hard block: done and archived are gate-protected states
+            if (!isRecovery && (next === 'done' || next === 'archived')) {
+                console.log(`ERROR: Cannot set lifecycle to '${next}' directly.`);
+                console.log(`'${next}' is a gate-protected state. Use the correct command instead:`);
+                if (next === 'done') {
+                    console.log('  - To accept a proposal: node .vflow/scripts/dist/proposal.js accept');
+                }
+                else {
+                    console.log('  - To archive a proposal: node .vflow/scripts/dist/proposal.js archive');
+                }
+                console.log('');
+                console.log('If you are recovering from data corruption, rerun: set lifecycle --value ${next} --recovery true');
+                return;
+            }
+            proposal.lifecycle_status = next;
             writeProposal(dir, proposal);
             upsertRepoIndex(repoIndexEntry(dir, proposal));
-            console.log(`Lifecycle: ${prev} -> ${value}`);
+            console.log(`Lifecycle: ${prev} -> ${next}${isRecovery ? ' (recovery mode)' : ''}`);
             break;
         }
         case 'blocking': {
@@ -509,7 +534,12 @@ async function cmdAccept(flags) {
         console.log('AI: pause first. Report goal / current state / diff-from-goal / verification results / risks to the user and ask. Only after explicit in-conversation approval, rerun `accept --user-approved` (logged as ai_relay). The user may also run `accept` in a terminal to confirm interactively.');
         return;
     }
+    // Write audit trail
+    const acceptedSource = userApproved ? 'ai_relay' : 'user_terminal';
     proposal.lifecycle_status = 'done';
+    proposal.accepted_at = isoNow();
+    proposal.accepted_by = acceptedSource === 'ai_relay' ? 'ai' : 'user';
+    proposal.accepted_source = acceptedSource;
     writeProposal(dir, proposal);
     upsertRepoIndex(repoIndexEntry(dir, proposal));
     if (proposal.tier !== 'T1') {
@@ -522,6 +552,7 @@ async function cmdAccept(flags) {
     if (skAccept)
         updateSessionConfirmation(skAccept, false);
     console.log(`Accepted. Proposal ${proposal.id} is now done.`);
+    console.log(`Audit: accepted_by=${proposal.accepted_by} source=${proposal.accepted_source} at=${proposal.accepted_at}`);
     if (proposal.tier !== 'T1') {
         console.log('Remember to append the matching `check -> done` transition entry to ledger.md.');
     }

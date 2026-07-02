@@ -15,3 +15,14 @@ src/template_vflow/.runtime/
 .vflow/knowledge/
 .vflow/scripts/node_modules/
 .vflow/scripts/dist/
+.ace-tool/
+.vflow.bak/
+
+# Temporary files and local backups
+.vflow.bak/
+additionDocTmp/
+outputlog/
+*.tgz
+plantmp.txt
+scripts/clean-legacy.mjs
+stage-gated-execution/

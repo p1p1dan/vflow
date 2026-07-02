@@ -9,6 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { readRepoIndex } from './lib/store.js';
+import { loadConfig } from './lib/config.js';
 
 // Read hook payload from stdin (Claude Code passes tool call metadata as JSON)
 let payload: { tool_name?: string } = {};
@@ -25,6 +26,14 @@ const toolName = payload.tool_name;
 // Only gate write operations; reads and Bash are allowed
 const blockedTools = ['Write', 'Edit', 'NotebookEdit'];
 if (!toolName || !blockedTools.includes(toolName)) {
+  process.exit(0);
+}
+
+// Respect the features.gate config toggle. When explicitly disabled, this hook
+// must not block — otherwise the config flag is a lie. Default (undefined) keeps
+// the gate ON, so a missing/corrupt config still enforces the workflow.
+const config = loadConfig();
+if (config.features?.gate === false) {
   process.exit(0);
 }
 

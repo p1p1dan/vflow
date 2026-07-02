@@ -31,6 +31,9 @@ export interface Proposal {
     updated_at: string;
     summary?: string;
     knowledge_processed?: boolean;
+    accepted_at?: string;
+    accepted_by?: string;
+    accepted_source?: 'user_terminal' | 'ai_relay';
     schema_version: 2;
 }
 export interface StateItem {

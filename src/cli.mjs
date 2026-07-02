@@ -37,12 +37,6 @@ const MANAGED_VFLOW = [
   'scripts/lib/schema.ts',
   'scripts/lib/session-runtime.ts',
   'scripts/lib/store.ts',
-  'templates/proposal/analysis.json',
-  'templates/proposal/design.json',
-  'templates/proposal/execution.json',
-  'templates/proposal/plan.json',
-  'templates/proposal/review.md',
-  'templates/proposal/verify.json',
   'tests/proposal-lifecycle.test.mjs',
 ];
 
@@ -110,6 +104,15 @@ const OLD_TEMPLATES = [
   'templates/task-spec.md', 'templates/ledger.md', 'templates/context.md',
   'templates/requirement.md', 'templates/design.md', 'templates/verify.md',
   'templates/quick-entry.md', 'templates/plan.md',
+];
+
+// v2 dead proposal templates — distributed by earlier 3.x builds but never read
+// by the proposal CLI (state.json/ledger.md are the real artifacts). Cleaned on
+// update so previously-installed copies don't linger.
+const DEAD_PROPOSAL_TEMPLATES = [
+  'templates/proposal/analysis.json', 'templates/proposal/design.json',
+  'templates/proposal/execution.json', 'templates/proposal/plan.json',
+  'templates/proposal/review.md', 'templates/proposal/verify.json',
 ];
 
 // v0.x old .vflow/skills/.
@@ -324,6 +327,16 @@ function cleanOldVersion(dst) {
   for (const rel of OLD_TEMPLATES) {
     const p = path.join(vf, rel);
     if (fs.existsSync(p)) { safeUnlink(p); cleaned++; console.log(`  [cleanup] .vflow/${rel}`); }
+  }
+
+  // v2 dead proposal templates — remove files, then the now-empty directory
+  for (const rel of DEAD_PROPOSAL_TEMPLATES) {
+    const p = path.join(vf, rel);
+    if (fs.existsSync(p)) { safeUnlink(p); cleaned++; console.log(`  [cleanup] .vflow/${rel}`); }
+  }
+  const deadTplDir = path.join(vf, 'templates', 'proposal');
+  if (fs.existsSync(deadTplDir) && fs.readdirSync(deadTplDir).length === 0) {
+    safeRmDir(deadTplDir); console.log('  [cleanup] .vflow/templates/proposal/');
   }
 
   // Old knowledge.md (v1 used file, v2 uses directory)
