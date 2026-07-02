@@ -10,9 +10,7 @@ src/template_vflow/knowledge/
 src/template_vflow/.runtime/
 
 # vflow
-.vflow/proposals/
 .vflow/runtime/
-.vflow/knowledge/
 .vflow/scripts/node_modules/
 .vflow/scripts/dist/
 .ace-tool/

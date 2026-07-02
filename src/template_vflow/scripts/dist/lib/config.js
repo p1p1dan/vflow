@@ -6,9 +6,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 function resolveRoot() {
     let dir = __dirname;
+    // config.json is the anchor: `vflow init` always writes it to .vflow/, whereas
+    // repo.json is created lazily on first CLI run. Keying off repo.json too caused
+    // a chicken-and-egg miss on the very first run — ROOT fell through to
+    // .vflow/scripts/, so repo.json + proposals/ were then created there, splitting
+    // config and repo across two directories permanently. Anchor on config.json so
+    // the root is stable from the first invocation.
     for (let i = 0; i < 5; i++) {
         const parent = dirname(dir);
-        if (existsSync(join(parent, 'config.json')) && existsSync(join(parent, 'repo.json'))) {
+        if (existsSync(join(parent, 'config.json'))) {
             return parent;
         }
         dir = parent;

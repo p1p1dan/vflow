@@ -106,6 +106,7 @@ User accepted. Ready for archival.
 **Actions:**
 1. Extract knowledge candidates before archiving. Run `knowledge suggest` — it prints the classification guide (Convention / Pattern / Forbidden / Gotcha) for you to apply by hand while reading back through `ledger.md`. Target file: `common/` (language-agnostic) · `lang/<language>.md` · `modules/` (qt/embedded/...) · `domain/<topic>.md`. Persist each with `knowledge save --content "..." --reason "..."`, or `knowledge skip` if nothing is worth keeping.
 2. Archive: `node .vflow/scripts/dist/proposal.js archive` (moves the proposal directory into `archive/<yyyy-mm>/`; requires `lifecycle_status=done`, pointer=done, and knowledge processed).
+3. **Optional — commit** (only if the user asks): the working tree now holds the full change set — code, version bump, docs, AND the proposal's own `ledger.md`/`state.json` under `.vflow/proposals/`. Commit it as ONE unit. `.vflow/proposals/` and `.vflow/knowledge/` are tracked on purpose (the ledger is the decision record); `.vflow/runtime/` is not. Stage an explicit file list — never `git add -A`. Version bumps and CHANGELOG belong in the SAME proposal's `build`, not a follow-up proposal.
 
 Command: `node .vflow/scripts/dist/proposal.js knowledge suggest` then `archive`
 

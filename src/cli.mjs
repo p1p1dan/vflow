@@ -54,10 +54,12 @@ const MANAGED_CLAUDE_SKILLS = [
   'vflow-proposal', 'vflow-go',
 ];
 
+// Only session-ephemeral state and build artifacts are ignored. proposals/ and
+// knowledge/ are intentionally committed: ledger.md is a human-readable decision
+// record (ADR-equivalent) and knowledge/ is accumulated team wisdom — both are
+// project assets that belong in version control.
 const GITIGNORE_LINES = [
-  '.vflow/proposals/',
   '.vflow/runtime/',
-  '.vflow/knowledge/',
   '.vflow/scripts/node_modules/',
   '.vflow/scripts/dist/',
 ];
@@ -491,10 +493,31 @@ function installPreToolGateHook(dstRoot) {
   }
 }
 
+// .gitignore lines that earlier vflow versions wrote but that are now wrong:
+// proposals/ and knowledge/ must be committed, not ignored. Upgrades strip these
+// so previously-ignored team assets become tracked again.
+const STALE_GITIGNORE_LINES = [
+  '.vflow/proposals/',
+  '.vflow/knowledge/',
+];
+
 function appendGitignore(dstRoot) {
   const p = path.join(dstRoot, '.gitignore');
   let existing = '';
   if (fs.existsSync(p)) existing = fs.readFileSync(p, 'utf-8');
+
+  // Remove stale ignore rules (migration): a line matches if it equals a stale
+  // entry after trimming, so we don't touch comments or unrelated paths.
+  const staleSet = new Set(STALE_GITIGNORE_LINES);
+  const lines = existing.split('\n');
+  const kept = lines.filter(l => !staleSet.has(l.trim()));
+  const removed = lines.length - kept.length;
+  if (removed > 0) {
+    existing = kept.join('\n');
+    fs.writeFileSync(p, existing, 'utf-8');
+    console.log(`  [清理] .gitignore: 移除 ${removed} 条过时规则(proposals/knowledge 现已纳入 git)`);
+  }
+
   const missing = GITIGNORE_LINES.filter(l => !existing.includes(l));
   if (missing.length === 0) return;
   let append = '';

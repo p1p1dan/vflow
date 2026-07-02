@@ -7,6 +7,21 @@ description: "Smart git commit workflow with change classification, split sugges
 
 Classify changes → suggest splits → generate Chinese commit message → one-shot confirmation → execute.
 
+## When to Commit (timing within the vflow lifecycle)
+
+Commit is an **optional step after `archive`**, not a separate proposal:
+
+- **Release prep belongs in `build`**: version bumps (package.json), CHANGELOG
+  entries, and doc updates are part of the SAME proposal that made the change.
+  Do NOT bump the version in its own proposal after accepting — that fragments
+  one release unit into two and triggers a spurious intake gate.
+- **Commit after archive**: once a proposal is `done` + `archived`, the working
+  tree holds the complete change set (code + version + docs + the proposal's own
+  ledger.md/state.json). Commit it as one unit, then optionally push.
+- **`.vflow/proposals/` and `.vflow/knowledge/` are committed on purpose** —
+  ledger.md is the decision record for the change. Include them in the commit so
+  reviewers see the "why" alongside the "what". `.vflow/runtime/` stays ignored.
+
 ## Flow
 
 ### Stage 1: Repository Validation
@@ -57,6 +72,9 @@ git log --oneline -1           # echo confirmation
 ## Hard Rules
 
 1. Don't commit unrecognized files without explicit user consent
-2. Don't use --no-verify / --force; hook failure → fix the issue then make a new commit, no --amend
-3. Don't push (push requires a separate user request)
-4. One commit = one concern
+2. **Never `git add -A` / `git add .`** — always stage an explicit file list.
+   Blanket staging is how backup dirs (`.vflow.bak/`), local tarballs (`*.tgz`),
+   and scratch files leak into commits. Enumerate the files you mean to commit.
+3. Don't use --no-verify / --force; hook failure → fix the issue then make a new commit, no --amend
+4. Don't push (push requires a separate user request)
+5. One commit = one concern

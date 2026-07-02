@@ -73,6 +73,19 @@ function injectSession(): void {
     }
   }
 
+  // Global collaboration baseline — unlike other specs (loaded on demand at
+  // implement/review time), basic.md is session-level working discipline
+  // (language, think-before-acting, minimalism...). Inject its full body every
+  // session so the AI operates under it from the first turn, not just its index row.
+  const basicSpec = join(SPEC_DIR, 'common', 'basic.md');
+  if (existsSync(basicSpec)) {
+    const basicContent = readText(basicSpec);
+    if (basicContent) {
+      lines.push(`\nGlobal baseline (${basicSpec}) — applies every turn:`);
+      lines.push(basicContent.trim());
+    }
+  }
+
   lines.push('</vflow-session>');
   process.stdout.write(lines.join('\n') + '\n');
 }
